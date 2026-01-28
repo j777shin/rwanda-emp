@@ -148,10 +148,6 @@ cython_debug/
 *.sqlite
 *.sqlite3
 data/*.db
-data/*.csv
 !data/*.py
 !data/*.ipynb
-
-# Keep schema and scripts but ignore generated data
-data/user_info.db
 
