@@ -1,7 +1,3 @@
-"""
-Import user_data.csv into the beneficiaries table.
-This script reads the CSV file and inserts data into the PostgreSQL database.
-"""
 import psycopg2
 import csv
 import sys
@@ -11,7 +7,6 @@ from typing import Optional
 
 
 def normalize_education_level(edu_level: str) -> str:
-    """Convert CSV education level format to database format."""
     if not edu_level or edu_level.strip() == '':
         return None
     
@@ -47,7 +42,6 @@ def convert_to_bool(value) -> bool:
 
 
 def convert_to_int(value, default=0) -> int:
-    """Convert value to integer."""
     if value is None or value == '' or value.strip() == '':
         return default
     try:
@@ -57,7 +51,6 @@ def convert_to_int(value, default=0) -> int:
 
 
 def convert_to_float(value) -> Optional[float]:
-    """Convert value to float."""
     if value is None or value == '' or value.strip() == '':
         return None
     try:
