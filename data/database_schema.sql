@@ -2,7 +2,6 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Users table (combined authentication and basic info)
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -34,12 +33,9 @@ CREATE TABLE beneficiaries (
     informal_working BOOLEAN DEFAULT FALSE,
     
     -- Livestock Assets
-    num_cows INTEGER DEFAULT 0,
     num_goats INTEGER DEFAULT 0,
-    num_chickens INTEGER DEFAULT 0,
     num_sheep INTEGER DEFAULT 0,
     num_pigs INTEGER DEFAULT 0,
-    num_rabbits INTEGER DEFAULT 0,
     
     -- Land & Housing
     land_ownership BOOLEAN DEFAULT FALSE,
@@ -47,14 +43,38 @@ CREATE TABLE beneficiaries (
     num_radio INTEGER DEFAULT 0,
     num_phone INTEGER DEFAULT 0,
     num_tv INTEGER DEFAULT 0,
-    fuel VARCHAR(10) CHECK (fuel IN ('EU4', 'EU8', 'EU9')),
-    water_source VARCHAR(10) CHECK (water_source IN ('WS1', 'WS2')),
-    floor BOOLEAN DEFAULT FALSE,
-    roof BOOLEAN DEFAULT FALSE,
-    walls BOOLEAN DEFAULT FALSE,
-    toilet BOOLEAN DEFAULT FALSE,
     
-    -- SkillCraft & Pathways (stored directly, no separate tables for MVP)
+    -- Cooking, floor, lighting (PMT variables)
+    cooking_firewood BOOLEAN DEFAULT FALSE,
+    cooking_gas BOOLEAN DEFAULT FALSE,
+    cooking_charcoal BOOLEAN DEFAULT FALSE,
+    floor_earth_sand BOOLEAN DEFAULT FALSE,
+    floor_tiles BOOLEAN DEFAULT FALSE,
+    lighting BOOLEAN DEFAULT FALSE,
+    
+    -- Livestock (PMT)
+    num_cattle INTEGER DEFAULT 0,
+    
+    -- Household (PMT variables)
+    children_under_18 INTEGER DEFAULT 0,
+    household_size INTEGER DEFAULT 0,
+    hh_head_university BOOLEAN DEFAULT FALSE,
+    hh_head_primary BOOLEAN DEFAULT FALSE,
+    hh_head_secondary BOOLEAN DEFAULT FALSE,
+    hh_head_married BOOLEAN DEFAULT FALSE,
+    hh_head_widow BOOLEAN DEFAULT FALSE,
+    hh_head_divorced BOOLEAN DEFAULT FALSE,
+    hh_head_female BOOLEAN DEFAULT FALSE,
+    
+    -- District (categorical; values from 17_question_pmt_recalibrated_weights.csv)
+    district VARCHAR(30) CHECK (district IN (
+        'Burera', 'Gasabo', 'Gatsibo', 'Gicumbi', 'Gisagara', 'Kamonyi', 'Karongi',
+        'Kayonza', 'Kicukiro', 'Kirehe', 'Muhanga', 'Musanze', 'Ngoma', 'Ngororero',
+        'Nyabihu', 'Nyagatare', 'Nyamagabe', 'Nyamasheke', 'Nyanza', 'Nyarugenge',
+        'Nyaruguru', 'Rubavu', 'Ruhango', 'Rusizi', 'Rutsiro', 'Rwamagana'
+    )),
+    
+    -- SkillCraft & Pathways 
     skillcraft_user_id VARCHAR(100),
     skillcraft_score DECIMAL(5, 2),
     skillcraft_last_sync TIMESTAMP,
@@ -68,6 +88,14 @@ CREATE TABLE beneficiaries (
         selection_status IN ('pending', 'selected', 'rejected', 'waitlist')
     ),
     track VARCHAR(20) CHECK (track IN ('employment', 'entrepreneurship', 'both')),
+    
+    -- Employment / programme outcomes
+    self_employed BOOLEAN DEFAULT FALSE,
+    hired BOOLEAN DEFAULT FALSE,
+    offline_attendance INTEGER DEFAULT 0,
+    phase1_satisfactory DECIMAL(5, 2),
+    emp_track_satisfactory DECIMAL(5, 2),
+    ent_track_satisfactory DECIMAL(5, 2),
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -146,11 +174,34 @@ SELECT
     b.gender,
     b.education_level,
     b.contact,
+    b.cooking_firewood,
+    b.cooking_gas,
+    b.cooking_charcoal,
+    b.floor_earth_sand,
+    b.floor_tiles,
+    b.lighting,
+    b.num_cattle,
+    b.children_under_18,
+    b.household_size,
+    b.hh_head_university,
+    b.hh_head_primary,
+    b.hh_head_secondary,
+    b.hh_head_married,
+    b.hh_head_widow,
+    b.hh_head_divorced,
+    b.hh_head_female,
+    b.district,
     b.skillcraft_score,
     b.pathways_completion_rate,
     b.eligibility_score,
     b.selection_status,
     b.track,
+    b.self_employed,
+    b.hired,
+    b.offline_attendance,
+    b.phase1_satisfactory,
+    b.emp_track_satisfactory,
+    b.ent_track_satisfactory,
     u.email,
     u.is_active,
     b.created_at
@@ -175,9 +226,9 @@ FROM beneficiaries;
 -- SEED DATA 
 -- ============================================================================
 
--- Create admin user (password: admin123)
+-- Create admin user 
 INSERT INTO users (email, password_hash, role) 
-VALUES ('admin@rwanda-mvp.local', crypt('admin123', gen_salt('bf')), 'admin');
+VALUES ('admin@admin@com', crypt('admin123', gen_salt('bf')), 'admin');
 
 -- ============================================================================
 -- HELPER FUNCTIONS 
@@ -203,13 +254,13 @@ BEGIN
     
     SELECT 
         CASE 
-            WHEN (num_cows + num_goats + num_chickens + num_sheep + num_pigs + num_rabbits) > 20 THEN 30
-            WHEN (num_cows + num_goats + num_chickens + num_sheep + num_pigs + num_rabbits) > 10 THEN 50
-            WHEN (num_cows + num_goats + num_chickens + num_sheep + num_pigs + num_rabbits) > 5 THEN 70
+            WHEN (COALESCE(num_cattle, 0) + num_goats + num_sheep + num_pigs) > 20 THEN 30
+            WHEN (COALESCE(num_cattle, 0) + num_goats + num_sheep + num_pigs) > 10 THEN 50
+            WHEN (COALESCE(num_cattle, 0) + num_goats + num_sheep + num_pigs) > 5 THEN 70
             ELSE 100
         END +
         CASE WHEN land_ownership THEN 0 ELSE 20 END +
-        CASE WHEN (floor AND roof AND walls AND toilet) THEN 0 ELSE 30 END
+        CASE WHEN (NOT COALESCE(floor_earth_sand, FALSE) AND COALESCE(floor_tiles, FALSE)) THEN 0 ELSE 30 END
     INTO v_socioeconomic
     FROM beneficiaries
     WHERE id = p_beneficiary_id;
@@ -235,6 +286,29 @@ $$ LANGUAGE plpgsql;
 
 COMMENT ON TABLE users IS 'MVP: Combined authentication and user data';
 COMMENT ON TABLE beneficiaries IS 'MVP: All beneficiary data in single table for simplicity';
+COMMENT ON COLUMN beneficiaries.cooking_firewood IS 'PMT: Cooking with firewood (q2_16=1)';
+COMMENT ON COLUMN beneficiaries.cooking_gas IS 'PMT: Cooking with gas (q2_16=2 or 5)';
+COMMENT ON COLUMN beneficiaries.cooking_charcoal IS 'PMT: Cooking with charcoal (q2_16=4)';
+COMMENT ON COLUMN beneficiaries.floor_earth_sand IS 'PMT: Floor earth/sand (q2_7=1)';
+COMMENT ON COLUMN beneficiaries.floor_tiles IS 'PMT: Floor tiles (q2_7=7)';
+COMMENT ON COLUMN beneficiaries.lighting IS 'PMT: Lighting electricity/solar (q2_32=1 or 2)';
+COMMENT ON COLUMN beneficiaries.num_cattle IS 'PMT: Number of cattle (q3_1_2_1)';
+COMMENT ON COLUMN beneficiaries.children_under_18 IS 'PMT: Children under 18 in household';
+COMMENT ON COLUMN beneficiaries.household_size IS 'PMT: Household size (count of members)';
+COMMENT ON COLUMN beneficiaries.hh_head_university IS 'PMT: Household head education university (q1_15=8,9,14)';
+COMMENT ON COLUMN beneficiaries.hh_head_primary IS 'PMT: Household head education primary (q1_15=3,12)';
+COMMENT ON COLUMN beneficiaries.hh_head_secondary IS 'PMT: Household head education secondary (q1_15=4,5,6,7,13)';
+COMMENT ON COLUMN beneficiaries.hh_head_married IS 'PMT: Household head married (q1_5=2)';
+COMMENT ON COLUMN beneficiaries.hh_head_widow IS 'PMT: Household head widow(er) (q1_5=6)';
+COMMENT ON COLUMN beneficiaries.hh_head_divorced IS 'PMT: Household head divorced/separated (q1_5=4,5)';
+COMMENT ON COLUMN beneficiaries.hh_head_female IS 'PMT: Household head female (q1_3=1)';
+COMMENT ON COLUMN beneficiaries.district IS 'PMT: District (categorical, see 17_question_pmt_recalibrated_weights.csv)';
+COMMENT ON COLUMN beneficiaries.self_employed IS 'Whether beneficiary is self-employed';
+COMMENT ON COLUMN beneficiaries.hired IS 'Whether beneficiary has been hired';
+COMMENT ON COLUMN beneficiaries.offline_attendance IS 'Offline training attendance (e.g. score or count)';
+COMMENT ON COLUMN beneficiaries.phase1_satisfactory IS 'Phase 1 satisfactory score (e.g. 0-100)';
+COMMENT ON COLUMN beneficiaries.emp_track_satisfactory IS 'Employment track satisfactory score (e.g. 0-100)';
+COMMENT ON COLUMN beneficiaries.ent_track_satisfactory IS 'Entrepreneurship track satisfactory score (e.g. 0-100)';
 COMMENT ON TABLE chatbot_conversations IS 'MVP: Simple message history';
 COMMENT ON TABLE chatbot_results IS 'MVP: One summary result per beneficiary';
 COMMENT ON TABLE activity_log IS 'MVP: Simple action tracking';

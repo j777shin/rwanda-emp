@@ -1,0 +1,51 @@
+Variable,Implementation,Weight
+Intercept,Starting score for all households,12.903
+Cooking: Firewood,q2_16 = 1,0.062
+Cooking: Gas,q2_16 = 2 OR q2_16 = 2 = 5,0.658
+Cooking: Charcoal,a2_16 = 4,0.255
+Floor: Earth/sand,q2_7 = 1,-0.190
+Foor: Tiles,q2_7 = 7,0.380
+Lighting: Electricity/solar,q2_32 = 1 OR q2_32 = 2,0.072
+Own phone,q2_29_09 = 1,0.096
+Own radio,q2_29_10 = 1,0.067
+Number of cattle,"q3_1_2_1 (if missing, value is 0)",0.061
+Own land,q2_17 = 1 OR q2_17 = 2,0.065
+Number of goats,"q3_1_2_2 (if missing, value is 0)",0.009
+Own TV,q2_29_11 = 1,0.229
+Number of sheep,"q3_1_2_3 (if missing, value is 0)",0.021
+Number of pigs,"q3_1_2_4 (if missing, value is 0)",0.032
+Children under 18,Calculate using age of household members,0.039
+Household size,Calculate by counting household members,-0.119
+Household head education: University,q1_15 = 8 OR q1_15 = 9 OR q1_15 = 14  (only for household heads),0.623
+Household head education: Primary,q1_15 = 3 OR q1_15 = 12 (only for household heads),0.093
+Household head education: Secondary,q1_15 = 4 OR q1_15 = 5 OR q1_15 = 6 OR q1_15 = 7 OR q1_15 = 13 (only for household heads),0.235
+Household head married,q1_5 = 2 (only for household heads),-0.014
+Household head widow(er),q1_5 = 6 (only for household heads),0.044
+Household head divorced/separated,q1_5 = 4 OR q1_5 = 5 (only for household heads),-0.064
+Household head female,q1_3 = 1 (only for household heads),-0.169
+District: Burera,,0.12
+District: Gasabo,,0.201
+District: Gatsibo,,0.134
+District: Gicumbi,,0.082
+District: Gisagara,,-0.203
+District: Kamonyi,,-0.067
+District: Karongi,,-0.044
+District: Kayonza,,-0.041
+District: Kicukiro,,0.208
+District: Kirehe,,0.024
+District: Muhanga,,0.017
+District: Musanze,,0.041
+District: Ngoma,,-0.087
+District: Ngororero,,-0.082
+District: Nyabihu,,0.069
+District: Nyagatare,,-0.05
+District: Nyamagabe,,-0.148
+District: Nyamasheke,,-0.09
+District: Nyanza,,-0.146
+District: Nyarugenge,,0.278
+District: Nyaruguru,,-0.124
+District: Rubavu,,-0.041
+District: Ruhango,,0.067
+District: Rusizi,,-0.046
+District: Rutsiro,,-0.079
+District: Rwamagana,,0.077
