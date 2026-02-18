@@ -66,7 +66,7 @@ CREATE TABLE beneficiaries (
     hh_head_divorced BOOLEAN DEFAULT FALSE,
     hh_head_female BOOLEAN DEFAULT FALSE,
     
-    -- District (categorical; values from 17_question_pmt_recalibrated_weights.csv)
+    -- District (categorical)
     district VARCHAR(30) CHECK (district IN (
         'Burera', 'Gasabo', 'Gatsibo', 'Gicumbi', 'Gisagara', 'Kamonyi', 'Karongi',
         'Kayonza', 'Kicukiro', 'Kirehe', 'Muhanga', 'Musanze', 'Ngoma', 'Ngororero',
@@ -97,8 +97,24 @@ CREATE TABLE beneficiaries (
     emp_track_satisfactory DECIMAL(5, 2),
     ent_track_satisfactory DECIMAL(5, 2),
     
+    -- Business development (for entrepreneurship interest)
+    business_development_text TEXT,
+    wants_entrepreneurship BOOLEAN DEFAULT FALSE,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE chatbot_stages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    beneficiary_id UUID NOT NULL REFERENCES beneficiaries(id) ON DELETE CASCADE,
+    stage_number INTEGER NOT NULL CHECK (stage_number BETWEEN 1 AND 5),
+    stage_name VARCHAR(100) NOT NULL,
+    status VARCHAR(20) DEFAULT 'not_started' CHECK (status IN ('not_started', 'in_progress', 'completed')),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    stage_data JSONB,
+    UNIQUE(beneficiary_id, stage_number)
 );
 
 CREATE TABLE chatbot_conversations (
@@ -136,6 +152,7 @@ CREATE INDEX idx_beneficiaries_user_id ON beneficiaries(user_id);
 CREATE INDEX idx_beneficiaries_selection_status ON beneficiaries(selection_status);
 CREATE INDEX idx_beneficiaries_eligibility_score ON beneficiaries(eligibility_score);
 CREATE INDEX idx_chatbot_conversations_beneficiary ON chatbot_conversations(beneficiary_id);
+CREATE INDEX idx_chatbot_stages_beneficiary ON chatbot_stages(beneficiary_id);
 CREATE INDEX idx_activity_log_user_id ON activity_log(user_id);
 
 CREATE OR REPLACE FUNCTION update_timestamp()

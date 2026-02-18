@@ -1,0 +1,20 @@
+# Core Requirements
+# ===================
+
+# PostgreSQL database adapter (psycopg3 - modern, Python 3.13 compatible)
+psycopg[binary]>=3.1.0
+
+# Environment variable management (for secure credential storage)
+python-dotenv==1.0.0
+
+
+# Optional but Recommended
+# =========================
+
+# Data analysis and CSV handling (useful for data verification)
+# Note: pandas is optional - only needed for advanced data analysis
+# Commented out due to Python 3.13 compatibility issues
+# pandas>=2.2.0
+
+# Progress bars for long-running operations
+tqdm>=4.66.0
