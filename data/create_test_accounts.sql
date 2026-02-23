@@ -30,7 +30,7 @@ SET password_hash = crypt('Admin@2026', gen_salt('bf')),
 WITH new_user AS (
     INSERT INTO users (email, password_hash, role, is_active, created_at, updated_at)
     VALUES (
-        'test.beneficiary@gmail.com',
+        'uwase.ingabire@gmail.com',
         crypt('User@2026', gen_salt('bf')),
         'beneficiary',
         TRUE,
