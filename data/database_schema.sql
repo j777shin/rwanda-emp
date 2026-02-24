@@ -82,21 +82,28 @@ CREATE TABLE beneficiaries (
     pathways_user_id VARCHAR(100),
     pathways_completion_rate DECIMAL(5, 2),
     pathways_last_sync TIMESTAMP,
-    
+    pathways_course_progress JSONB,
+
     eligibility_score DECIMAL(5, 2),
     selection_status VARCHAR(20) DEFAULT 'pending' CHECK (
-        selection_status IN ('pending', 'selected', 'rejected', 'waitlist')
+        selection_status IN ('pending', 'phase1', 'selected', 'rejected', 'waitlist')
     ),
     track VARCHAR(20) CHECK (track IN ('employment', 'entrepreneurship', 'both')),
     
     -- Employment / programme outcomes
     self_employed BOOLEAN DEFAULT FALSE,
     hired BOOLEAN DEFAULT FALSE,
+    hired_company_name VARCHAR(255),
+    self_employed_description TEXT,
     offline_attendance INTEGER DEFAULT 0,
     phase1_satisfactory DECIMAL(5, 2),
     emp_track_satisfactory DECIMAL(5, 2),
     ent_track_satisfactory DECIMAL(5, 2),
     
+    -- Grant
+    grant_received BOOLEAN DEFAULT FALSE,
+    grant_amount INTEGER DEFAULT 0,
+
     -- Business development (for entrepreneurship interest)
     business_development_text TEXT,
     wants_entrepreneurship BOOLEAN DEFAULT FALSE,

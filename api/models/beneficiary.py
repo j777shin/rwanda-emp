@@ -79,10 +79,16 @@ class Beneficiary(Base):
     # Employment / programme outcomes
     self_employed: Mapped[bool] = mapped_column(Boolean, default=False)
     hired: Mapped[bool] = mapped_column(Boolean, default=False)
+    hired_company_name: Mapped[str | None] = mapped_column(String(255))
+    self_employed_description: Mapped[str | None] = mapped_column(Text)
     offline_attendance: Mapped[int] = mapped_column(Integer, default=0)
     phase1_satisfactory: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     emp_track_satisfactory: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     ent_track_satisfactory: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+
+    # Grant
+    grant_received: Mapped[bool] = mapped_column(Boolean, default=False)
+    grant_amount: Mapped[int] = mapped_column(Integer, default=0)
 
     # Business development (new columns)
     business_development_text: Mapped[str | None] = mapped_column(Text)

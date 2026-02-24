@@ -2,14 +2,17 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db
 from models.user import User
 from models.beneficiary import Beneficiary
+from models.chatbot import ChatbotConversation, ChatbotResult, ChatbotStage
+from models.survey import SurveyResponse
 from middleware.auth import verify_password, create_token, get_current_user
+from utils.helpers import TEST_ACCOUNT_EMAILS
 
 router = APIRouter()
 
@@ -103,3 +106,41 @@ async def get_me(user: Annotated[User, Depends(get_current_user)], db: Annotated
             }
 
     return user_data
+
+
+@router.post("/logout")
+async def logout(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Logout endpoint. For test accounts, resets all progress data to initial state."""
+    if user.email not in TEST_ACCOUNT_EMAILS:
+        return {"success": True}
+
+    # Test account — reset all progress data
+    ben_result = await db.execute(
+        select(Beneficiary).where(Beneficiary.user_id == user.id)
+    )
+    ben = ben_result.scalar_one_or_none()
+    if not ben:
+        return {"success": True}
+
+    # Delete chatbot data (conversations, stages, results)
+    await db.execute(delete(ChatbotConversation).where(ChatbotConversation.beneficiary_id == ben.id))
+    await db.execute(delete(ChatbotStage).where(ChatbotStage.beneficiary_id == ben.id))
+    await db.execute(delete(ChatbotResult).where(ChatbotResult.beneficiary_id == ben.id))
+
+    # Delete survey responses
+    await db.execute(delete(SurveyResponse).where(SurveyResponse.beneficiary_id == ben.id))
+
+    # Reset beneficiary fields to initial state
+    ben.skillcraft_score = None
+    ben.pathways_completion_rate = None
+    ben.eligibility_score = None
+    ben.self_employed = False
+    ben.hired = False
+    ben.hired_company_name = None
+    ben.self_employed_description = None
+
+    await db.commit()
+    return {"success": True}

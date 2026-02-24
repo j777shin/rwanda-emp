@@ -15,10 +15,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 24
 
-    # Mistral API
-    mistral_api_key: str = ""
-    mistral_api_url: str = "https://api.mistral.ai/v1/chat/completions"
-    mistral_model: str = "mistral-small-latest"
+    # LLM API (OpenAI)
+    openai_api_key: str = ""
+    openai_api_url: str = "https://api.openai.com/v1/chat/completions"
+    openai_model: str = "gpt-4.1-mini"
+
+    # SkillCraft (psychometric assessment platform)
+    skillcraft_api_url: str = "https://api-prod.skillcraft.app"
+    skillcraft_pilot_group: str = "dr"
 
     # Pathways (Strapi e-learning platform)
     pathways_api_url: str = "http://localhost:1337"

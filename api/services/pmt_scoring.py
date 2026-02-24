@@ -5,16 +5,15 @@ Lower PMT score = more vulnerable/poorer household.
 """
 
 # District effects from the recalibrated PMT model
+# Source: data/17_question_pmt_recalibrated_weights.csv
 DISTRICT_EFFECTS = {
-    "Nyarugenge": 0.278, "Gasabo": 0.183, "Kicukiro": 0.245,
-    "Burera": -0.098, "Gatsibo": -0.156, "Gicumbi": -0.112,
-    "Gisagara": -0.203, "Kamonyi": -0.087, "Karongi": -0.145,
-    "Kayonza": -0.134, "Kirehe": -0.178, "Muhanga": -0.056,
-    "Musanze": 0.012, "Ngoma": -0.123, "Ngororero": -0.167,
-    "Nyabihu": -0.089, "Nyagatare": -0.145, "Nyamagabe": -0.134,
-    "Nyamasheke": -0.156, "Nyanza": -0.098, "Nyaruguru": -0.178,
-    "Rubavu": 0.034, "Ruhango": -0.078, "Rusizi": -0.112,
-    "Rutsiro": -0.145, "Rwamagana": -0.067,
+    "Burera": 0.12, "Gasabo": 0.201, "Gatsibo": 0.134, "Gicumbi": 0.082,
+    "Gisagara": -0.203, "Kamonyi": -0.067, "Karongi": -0.044, "Kayonza": -0.041,
+    "Kicukiro": 0.208, "Kirehe": 0.024, "Muhanga": 0.017, "Musanze": 0.041,
+    "Ngoma": -0.087, "Ngororero": -0.082, "Nyabihu": 0.069, "Nyagatare": -0.05,
+    "Nyamagabe": -0.148, "Nyamasheke": -0.09, "Nyanza": -0.146, "Nyarugenge": 0.278,
+    "Nyaruguru": -0.124, "Rubavu": -0.041, "Ruhango": 0.067, "Rusizi": -0.046,
+    "Rutsiro": -0.079, "Rwamagana": 0.077,
 }
 
 # Base weights from the PMT model

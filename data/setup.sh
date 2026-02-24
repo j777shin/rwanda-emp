@@ -3,23 +3,33 @@
 
 set -e  # Exit on error
 
+# Load .env if it exists
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
+DB_HOST="${DB_HOST:-localhost}"
+DB_PORT="${DB_PORT:-5432}"
+DB_USER="${DB_USER:-postgres}"
+DB_NAME="${DB_NAME:-rwanda_emp}"
+
 echo "=========================================="
 echo "Rwanda Employment Project - Database Setup"
 echo "=========================================="
 
 # Check Python version
 echo ""
-echo "[1/4] Checking Python version..."
+echo "[1/6] Checking Python version..."
 python3 --version || { echo "Error: Python 3 is not installed"; exit 1; }
 
 # Install Python dependencies
 echo ""
-echo "[2/4] Installing Python dependencies..."
+echo "[2/6] Installing Python dependencies..."
 pip3 install -r requirements.txt
 
 # Create .env file if it doesn't exist
 echo ""
-echo "[3/4] Setting up environment configuration..."
+echo "[3/6] Setting up environment configuration..."
 if [ ! -f .env ]; then
     echo "Creating .env file from template..."
     cp .env.example .env
@@ -33,12 +43,11 @@ fi
 
 # Check if PostgreSQL is running
 echo ""
-echo "[4/4] Checking PostgreSQL..."
+echo "[4/6] Checking PostgreSQL..."
 if command -v psql &> /dev/null; then
     echo "✓ PostgreSQL client found"
 
-    # Try to connect (this will fail if not running, but that's ok)
-    if psql -h localhost -U postgres -c '\q' 2>/dev/null; then
+    if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -c '\q' 2>/dev/null; then
         echo "✓ PostgreSQL server is running"
     else
         echo "⚠️  Could not connect to PostgreSQL server"
@@ -49,13 +58,40 @@ else
     echo "   Please ensure PostgreSQL is installed"
 fi
 
+# Drop and recreate database
+echo ""
+echo "[5/6] Dropping and recreating database '${DB_NAME}'..."
+if command -v dropdb &> /dev/null; then
+    dropdb -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" --if-exists "$DB_NAME" && \
+        echo "✓ Dropped existing database '${DB_NAME}'" || \
+        echo "⚠️  Could not drop database (may not exist yet)"
+else
+    echo "⚠️  dropdb command not found, skipping drop step"
+fi
+
+# Load schema, data, survey tables, and test accounts
+echo ""
+echo "[6/6] Loading schema, data, and test accounts..."
+python3 load_data_to_db.py
+
+echo "  Adding survey tables..."
+PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f add_survey_tables.sql
+
+echo "  Creating test accounts..."
+PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f create_test_accounts.sql
+
 echo ""
 echo "=========================================="
 echo "Setup Complete!"
 echo "=========================================="
 echo ""
-echo "Next steps:"
-echo "1. Edit .env file with your database credentials"
-echo "2. Run: python3 load_data_to_db.py"
-echo "3. Verify: python3 verify_data.py"
+echo "Test Account Credentials:"
+echo ""
+echo "  Admin Portal:"
+echo "    Email:    admin@rwanda.gov.rw"
+echo "    Password: Admin@2026"
+echo ""
+echo "  Beneficiary (Full Access - All Tabs):"
+echo "    Email:    test@gmail.com"
+echo "    Password: User@2026"
 echo ""

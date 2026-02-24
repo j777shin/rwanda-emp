@@ -9,6 +9,7 @@ from models.user import User
 from models.beneficiary import Beneficiary
 from models.chatbot import ChatbotResult, ChatbotStage
 from middleware.auth import require_admin
+from utils.helpers import test_account_user_ids_subquery
 
 router = APIRouter()
 
@@ -18,43 +19,45 @@ async def get_phase1_dashboard(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
+
     selected = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(Beneficiary.selection_status == "selected")
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.selection_status == "selected")
     )).scalar()
 
     # SkillCraft stats
     sc_completed = (await db.execute(
         select(func.count()).select_from(Beneficiary)
-        .where(Beneficiary.selection_status == "selected")
+        .where(exc, Beneficiary.selection_status == "selected")
         .where(Beneficiary.skillcraft_score.is_not(None))
     )).scalar()
     avg_sc = (await db.execute(
         select(func.avg(Beneficiary.skillcraft_score))
-        .where(Beneficiary.skillcraft_score.is_not(None))
+        .where(exc, Beneficiary.skillcraft_score.is_not(None))
     )).scalar()
 
     # Pathways stats
     pw_enrolled = (await db.execute(
         select(func.count()).select_from(Beneficiary)
-        .where(Beneficiary.selection_status == "selected")
+        .where(exc, Beneficiary.selection_status == "selected")
         .where(Beneficiary.pathways_user_id.is_not(None))
     )).scalar()
     avg_pw = (await db.execute(
         select(func.avg(Beneficiary.pathways_completion_rate))
-        .where(Beneficiary.pathways_completion_rate.is_not(None))
+        .where(exc, Beneficiary.pathways_completion_rate.is_not(None))
     )).scalar()
 
     # Business dev
     bd_interest = (await db.execute(
         select(func.count()).select_from(Beneficiary)
-        .where(Beneficiary.selection_status == "selected")
+        .where(exc, Beneficiary.selection_status == "selected")
         .where(Beneficiary.wants_entrepreneurship == True)
     )).scalar()
 
     # Avg attendance
     avg_attendance = (await db.execute(
         select(func.avg(Beneficiary.offline_attendance))
-        .where(Beneficiary.selection_status == "selected")
+        .where(exc, Beneficiary.selection_status == "selected")
     )).scalar()
 
     return {
@@ -82,22 +85,24 @@ async def get_phase2_dashboard(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
+
     employment = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(Beneficiary.track == "employment")
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.track == "employment")
     )).scalar()
     entrepreneurship = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(Beneficiary.track == "entrepreneurship")
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.track == "entrepreneurship")
     )).scalar()
 
     # Employment outcomes
     hired = (await db.execute(
         select(func.count()).select_from(Beneficiary)
-        .where(Beneficiary.track == "employment")
+        .where(exc, Beneficiary.track == "employment")
         .where(Beneficiary.hired == True)
     )).scalar()
     self_emp = (await db.execute(
         select(func.count()).select_from(Beneficiary)
-        .where(Beneficiary.self_employed == True)
+        .where(exc, Beneficiary.self_employed == True)
     )).scalar()
 
     # Entrepreneurship - reports generated
@@ -129,10 +134,11 @@ async def get_employment_progress(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
     result = await db.execute(
         select(Beneficiary, User.email)
         .join(User, Beneficiary.user_id == User.id)
-        .where(Beneficiary.track == "employment")
+        .where(exc, Beneficiary.track == "employment")
         .order_by(Beneficiary.pathways_completion_rate.desc().nullslast())
         .limit(100)
     )
@@ -157,11 +163,12 @@ async def get_entrepreneurship_progress(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
     result = await db.execute(
         select(Beneficiary, User.email, ChatbotResult)
         .join(User, Beneficiary.user_id == User.id)
         .outerjoin(ChatbotResult, Beneficiary.id == ChatbotResult.beneficiary_id)
-        .where(Beneficiary.track == "entrepreneurship")
+        .where(exc, Beneficiary.track == "entrepreneurship")
         .limit(100)
     )
     rows = result.all()

@@ -10,6 +10,7 @@ from database import get_db
 from models.user import User
 from models.beneficiary import Beneficiary
 from middleware.auth import require_admin
+from utils.helpers import test_account_user_ids_subquery
 
 router = APIRouter()
 
@@ -60,14 +61,21 @@ async def list_beneficiaries(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=50000),
     search: str | None = None,
     selection_status: str | None = None,
     track: str | None = None,
     district: str | None = None,
+    sort_by: str | None = Query(None, pattern="^(eligibility_score|created_at|name|age)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
 ):
     query = select(Beneficiary, User.email).join(User, Beneficiary.user_id == User.id)
     count_query = select(func.count()).select_from(Beneficiary)
+
+    # Exclude test accounts from admin portal
+    exclude_test = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
+    query = query.where(exclude_test)
+    count_query = count_query.where(exclude_test)
 
     if search:
         search_filter = or_(
@@ -92,8 +100,18 @@ async def list_beneficiaries(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
+    # Sorting
+    sort_column_map = {
+        "eligibility_score": Beneficiary.eligibility_score,
+        "created_at": Beneficiary.created_at,
+        "name": Beneficiary.name,
+        "age": Beneficiary.age,
+    }
+    sort_col = sort_column_map.get(sort_by, Beneficiary.created_at)
+    order = sort_col.asc() if sort_order == "asc" else sort_col.desc()
+
     offset = (page - 1) * page_size
-    query = query.offset(offset).limit(page_size).order_by(Beneficiary.created_at.desc())
+    query = query.offset(offset).limit(page_size).order_by(order)
     result = await db.execute(query)
     rows = result.all()
 

@@ -15,8 +15,11 @@ from services.chatbot import (
     initialize_stages,
     get_current_stage,
     send_message,
+    finish_stage,
+    go_to_stage,
 )
 from services.report_generator import generate_pdf_report
+from utils.helpers import TEST_ACCOUNT_EMAILS
 
 router = APIRouter()
 
@@ -24,6 +27,14 @@ router = APIRouter()
 class MessageRequest(BaseModel):
     message: str
     conversation_history: list[dict] = []
+
+
+class FinishStageRequest(BaseModel):
+    conversation_history: list[dict] = []
+
+
+class GoToStageRequest(BaseModel):
+    stage_number: int
 
 
 async def _get_beneficiary(user: User, db: AsyncSession) -> Beneficiary:
@@ -83,6 +94,8 @@ async def get_chatbot_status(
         "current_stage_name": current.stage_name if current else None,
         "completed": all(s.status == "completed" for s in stages),
         "report_ready": report is not None,
+        "is_test_account": user.email in TEST_ACCOUNT_EMAILS,
+        "business_development_goal": ben.business_development_text or "",
     }
 
 
@@ -100,6 +113,33 @@ async def send_chatbot_message(
     result = await send_message(
         db, ben.id, body.message.strip(), body.conversation_history
     )
+    return result
+
+
+@router.post("/finish-stage")
+async def finish_chatbot_stage(
+    body: FinishStageRequest,
+    user: Annotated[User, Depends(require_beneficiary)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    ben = await _get_beneficiary(user, db)
+    result = await finish_stage(db, ben.id, body.conversation_history)
+    return result
+
+
+@router.post("/go-to-stage")
+async def go_to_chatbot_stage(
+    body: GoToStageRequest,
+    user: Annotated[User, Depends(require_beneficiary)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if user.email not in TEST_ACCOUNT_EMAILS:
+        raise HTTPException(status_code=403, detail="Only test accounts can navigate between stages")
+
+    ben = await _get_beneficiary(user, db)
+    result = await go_to_stage(db, ben.id, body.stage_number)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
     return result
 
 

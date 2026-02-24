@@ -133,6 +133,125 @@ async def get_survey_stats(
     }
 
 
+@router.get("/{survey_type}/analytics")
+async def get_survey_analytics(
+    survey_type: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get per-question satisfaction score analytics (overall vs female)
+    """
+    valid_types = ['phase1', 'employment', 'entrepreneurship']
+    if survey_type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Invalid survey type. Must be one of: {valid_types}")
+
+    QUESTION_LABELS = {
+        "phase1": {
+            "overall_training_quality": "Overall Training Quality",
+            "content_relevance": "Content Relevance",
+            "instructor_quality": "Instructor Quality",
+            "facility_quality": "Facility Quality",
+            "would_recommend": "Would Recommend",
+        },
+        "employment": {
+            "job_preparation_quality": "Job Preparation Quality",
+            "skills_relevance": "Skills Relevance",
+            "career_guidance_helpfulness": "Career Guidance",
+            "interview_preparation": "Interview Preparation",
+            "job_placement_support": "Job Placement Support",
+        },
+        "entrepreneurship": {
+            "chatbot_helpfulness": "Chatbot Helpfulness",
+            "business_plan_quality": "Business Plan Quality",
+            "market_analysis_guidance": "Market Analysis",
+            "financial_planning_support": "Financial Planning",
+            "overall_readiness_confidence": "Overall Readiness",
+        },
+    }
+
+    # Get all responses with beneficiary gender
+    result = await db.execute(
+        select(SurveyResponse.responses, Beneficiary.gender)
+        .join(Beneficiary, SurveyResponse.beneficiary_id == Beneficiary.id)
+        .where(SurveyResponse.survey_type == survey_type)
+    )
+    rows = result.all()
+
+    labels = QUESTION_LABELS.get(survey_type, {})
+    question_ids = list(labels.keys())
+
+    if not rows:
+        return {
+            "survey_type": survey_type,
+            "total_respondents": 0,
+            "female_respondents": 0,
+            "questions": [
+                {"id": qid, "label": labels[qid], "avg_score": 0, "avg_score_female": 0,
+                 "response_count": 0, "female_count": 0}
+                for qid in question_ids
+            ],
+            "overall": {"avg_score": 0, "avg_score_female": 0},
+        }
+
+    # Accumulate scores per question
+    all_scores = {qid: [] for qid in question_ids}
+    female_scores = {qid: [] for qid in question_ids}
+    total_respondents = 0
+    female_respondents = 0
+
+    for responses, gender in rows:
+        total_respondents += 1
+        is_female = gender and gender.lower() == "female"
+        if is_female:
+            female_respondents += 1
+
+        for qid in question_ids:
+            val = responses.get(qid)
+            if val is not None:
+                try:
+                    score = float(val)
+                    if 1 <= score <= 5:
+                        all_scores[qid].append(score)
+                        if is_female:
+                            female_scores[qid].append(score)
+                except (ValueError, TypeError):
+                    pass
+
+    # Build per-question results
+    questions = []
+    all_flat = []
+    female_flat = []
+
+    for qid in question_ids:
+        avg_all = sum(all_scores[qid]) / len(all_scores[qid]) if all_scores[qid] else 0
+        avg_fem = sum(female_scores[qid]) / len(female_scores[qid]) if female_scores[qid] else 0
+        all_flat.extend(all_scores[qid])
+        female_flat.extend(female_scores[qid])
+
+        questions.append({
+            "id": qid,
+            "label": labels.get(qid, qid),
+            "avg_score": round(avg_all, 2),
+            "avg_score_female": round(avg_fem, 2),
+            "response_count": len(all_scores[qid]),
+            "female_count": len(female_scores[qid]),
+        })
+
+    overall_avg = sum(all_flat) / len(all_flat) if all_flat else 0
+    overall_avg_female = sum(female_flat) / len(female_flat) if female_flat else 0
+
+    return {
+        "survey_type": survey_type,
+        "total_respondents": total_respondents,
+        "female_respondents": female_respondents,
+        "questions": questions,
+        "overall": {
+            "avg_score": round(overall_avg, 2),
+            "avg_score_female": round(overall_avg_female, 2),
+        },
+    }
+
+
 @router.get("/{survey_type}/{response_id}")
 async def get_survey_response(
     survey_type: str,

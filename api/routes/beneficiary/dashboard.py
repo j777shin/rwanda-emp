@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,12 @@ from models.user import User
 from models.beneficiary import Beneficiary
 from models.chatbot import ChatbotResult, ChatbotStage
 from middleware.auth import require_beneficiary
+
+
+class EmploymentStatusUpdate(BaseModel):
+    status: str  # "hired", "self-employed", or "none"
+    hired_company_name: str | None = None
+    self_employed_description: str | None = None
 
 router = APIRouter()
 
@@ -75,6 +82,36 @@ async def get_dashboard(
             "report_ready": report is not None,
             "self_employed": ben.self_employed,
             "hired": ben.hired,
+            "hired_company_name": ben.hired_company_name or "",
+            "self_employed_description": ben.self_employed_description or "",
         },
         "eligibility_score": float(ben.eligibility_score) if ben.eligibility_score else None,
     }
+
+
+@router.post("/employment-status")
+async def update_employment_status(
+    payload: EmploymentStatusUpdate,
+    user: Annotated[User, Depends(require_beneficiary)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    ben = await _get_beneficiary(user, db)
+
+    if payload.status == "hired":
+        ben.hired = True
+        ben.self_employed = False
+        ben.hired_company_name = (payload.hired_company_name or "").strip()
+        ben.self_employed_description = None
+    elif payload.status == "self-employed":
+        ben.self_employed = True
+        ben.hired = False
+        ben.self_employed_description = (payload.self_employed_description or "").strip()
+        ben.hired_company_name = None
+    else:
+        ben.hired = False
+        ben.self_employed = False
+        ben.hired_company_name = None
+        ben.self_employed_description = None
+
+    await db.commit()
+    return {"success": True, "status": payload.status}

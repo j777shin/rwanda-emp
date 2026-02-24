@@ -2,14 +2,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from models.user import User
 from models.beneficiary import Beneficiary
+from models.survey import SurveyResponse
 from middleware.auth import require_admin
-from services.selection import calculate_all_pmt_scores, select_phase1_beneficiaries, assign_tracks
+from services.selection import (
+    calculate_all_pmt_scores,
+    select_phase1_beneficiaries,
+    assign_tracks,
+    apply_phase1_results,
+    run_phase2_selection,
+)
+from utils.helpers import TEST_ACCOUNT_EMAILS, test_account_user_ids_subquery
 
 router = APIRouter()
 
@@ -47,11 +55,13 @@ async def get_selection_results(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
+
     # Get counts by selection status
     status_counts = {}
     for status in ["pending", "selected", "rejected", "waitlist"]:
         result = await db.execute(
-            select(func.count()).select_from(Beneficiary).where(Beneficiary.selection_status == status)
+            select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.selection_status == status)
         )
         status_counts[status] = result.scalar()
 
@@ -59,13 +69,13 @@ async def get_selection_results(
     track_counts = {}
     for track in ["employment", "entrepreneurship"]:
         result = await db.execute(
-            select(func.count()).select_from(Beneficiary).where(Beneficiary.track == track)
+            select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.track == track)
         )
         track_counts[track] = result.scalar()
 
     # Avg eligibility scores
     result = await db.execute(
-        select(func.avg(Beneficiary.eligibility_score)).where(Beneficiary.selection_status == "selected")
+        select(func.avg(Beneficiary.eligibility_score)).where(exc, Beneficiary.selection_status == "selected")
     )
     avg_selected_score = result.scalar()
 
@@ -89,17 +99,122 @@ async def assign_phase2_tracks(
     return {"message": "Track assignment complete", **result}
 
 
+@router.post("/apply-phase1-results")
+async def apply_phase1_training_results(
+    admin: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await apply_phase1_results(db)
+    return {"message": "Phase 1 results applied", **result}
+
+
+@router.post("/run-phase2")
+async def run_phase2_auto_selection(
+    admin: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await run_phase2_selection(db)
+    return {"message": "Phase 2 selection complete", **result}
+
+
+@router.post("/reset")
+async def reset_selection(
+    admin: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Reset eligibility scores and selection status for all non-test beneficiaries."""
+    # Get test account user IDs to exclude
+    test_user_result = await db.execute(
+        select(User.id).where(User.email.in_(TEST_ACCOUNT_EMAILS))
+    )
+    test_user_ids = [row[0] for row in test_user_result.all()]
+
+    # Reset all non-test beneficiaries
+    stmt = (
+        update(Beneficiary)
+        .where(Beneficiary.user_id.not_in(test_user_ids) if test_user_ids else True)
+        .values(
+            eligibility_score=None,
+            selection_status="pending",
+            track=None,
+        )
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+
+    return {"message": "Selection reset complete", "reset_count": result.rowcount}
+
+
+@router.post("/reset-phase2")
+async def reset_phase2_selection(
+    admin: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Reset track assignments and generated Phase 1 results for all non-test selected beneficiaries."""
+    # Get test account user IDs to exclude
+    test_user_result = await db.execute(
+        select(User.id).where(User.email.in_(TEST_ACCOUNT_EMAILS))
+    )
+    test_user_ids = [row[0] for row in test_user_result.all()]
+
+    # Reset all generated Phase 1 results and track assignments for selected beneficiaries
+    stmt = (
+        update(Beneficiary)
+        .where(
+            Beneficiary.user_id.not_in(test_user_ids) if test_user_ids else True,
+            Beneficiary.selection_status == "selected",
+        )
+        .values(
+            track=None,
+            skillcraft_score=None,
+            pathways_completion_rate=None,
+            offline_attendance=0,
+            wants_entrepreneurship=False,
+            business_development_text=None,
+            grant_received=False,
+            grant_amount=0,
+            hired=False,
+            self_employed=False,
+            phase1_satisfactory=None,
+        )
+    )
+    result = await db.execute(stmt)
+
+    # Delete generated phase1 survey responses for non-test selected beneficiaries
+    non_test_ben_ids = await db.execute(
+        select(Beneficiary.id).where(
+            Beneficiary.user_id.not_in(test_user_ids) if test_user_ids else True,
+            Beneficiary.selection_status == "selected",
+        )
+    )
+    ben_ids = [row[0] for row in non_test_ben_ids.all()]
+    if ben_ids:
+        await db.execute(
+            delete(SurveyResponse).where(
+                SurveyResponse.beneficiary_id.in_(ben_ids),
+                SurveyResponse.survey_type == "phase1",
+            )
+        )
+
+    await db.commit()
+
+    return {"message": "Phase 2 reset complete", "reset_count": result.rowcount}
+
+
 @router.get("/eligibility/stats")
 async def get_eligibility_stats(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
+
     # Score distribution in buckets
     buckets = []
     ranges = [(0, 12), (12, 12.5), (12.5, 13), (13, 13.5), (13.5, 14), (14, 100)]
     for low, high in ranges:
         result = await db.execute(
             select(func.count()).select_from(Beneficiary)
+            .where(exc)
             .where(Beneficiary.eligibility_score >= low)
             .where(Beneficiary.eligibility_score < high)
             .where(Beneficiary.eligibility_score.is_not(None))
@@ -113,7 +228,7 @@ async def get_eligibility_stats(
             func.max(Beneficiary.eligibility_score),
             func.avg(Beneficiary.eligibility_score),
             func.count(),
-        ).where(Beneficiary.eligibility_score.is_not(None))
+        ).where(exc, Beneficiary.eligibility_score.is_not(None))
     )
     row = result.one()
 
