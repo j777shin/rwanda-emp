@@ -103,11 +103,66 @@ async def get_demographics(
     )
     districts = {row[0]: row[1] for row in district_result.all()}
 
+    # Marriage status distribution
+    married_count = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.marriage_status == True)
+    )).scalar()
+    unmarried_count = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.marriage_status == False)
+    )).scalar()
+    marriage_status = {"Married": married_count, "Unmarried": unmarried_count}
+
+    # Disability distribution
+    disabled_count = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.disability == True)
+    )).scalar()
+    no_disability_count = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.disability == False)
+    )).scalar()
+    disability = {"Has Disability": disabled_count, "No Disability": no_disability_count}
+
+    # Occupation distribution
+    has_occupation = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.occupation == True)
+    )).scalar()
+    no_occupation = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.occupation == False)
+    )).scalar()
+    occupation = {"Has Occupation": has_occupation, "No Occupation": no_occupation}
+
+    # Informal working distribution
+    informal_yes = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.informal_working == True)
+    )).scalar()
+    informal_no = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.informal_working == False)
+    )).scalar()
+    informal_working = {"Informal": informal_yes, "Formal / None": informal_no}
+
+    # Household size distribution
+    hh_result = await db.execute(
+        select(
+            case(
+                (Beneficiary.household_size.between(1, 2), "1-2"),
+                (Beneficiary.household_size.between(3, 4), "3-4"),
+                (Beneficiary.household_size.between(5, 6), "5-6"),
+                (Beneficiary.household_size >= 7, "7+"),
+            ).label("hh_group"),
+            func.count(),
+        ).where(exc, Beneficiary.household_size > 0).group_by("hh_group")
+    )
+    household_size_groups = {row[0]: row[1] for row in hh_result.all() if row[0]}
+
     return {
         "gender": gender,
         "age_groups": age,
         "education": education,
         "districts": districts,
+        "marriage_status": marriage_status,
+        "disability": disability,
+        "occupation": occupation,
+        "informal_working": informal_working,
+        "household_size_groups": household_size_groups,
     }
 
 
@@ -180,6 +235,80 @@ async def get_socioeconomic(
     # Avg household size
     avg_hh = (await db.execute(select(func.avg(Beneficiary.household_size)).where(exc))).scalar()
 
+    # --- Distribution arrays for charts ---
+
+    # Livestock ownership: count of owners per type
+    livestock_types = [
+        ("Cattle", Beneficiary.num_cattle),
+        ("Goats", Beneficiary.num_goats),
+        ("Sheep", Beneficiary.num_sheep),
+        ("Pigs", Beneficiary.num_pigs),
+    ]
+    livestock_ownership = []
+    for label, col in livestock_types:
+        owners = (await db.execute(
+            select(func.count()).select_from(Beneficiary).where(exc, col > 0)
+        )).scalar() or 0
+        livestock_ownership.append({
+            "category": label,
+            "owners": owners,
+            "percentage": round(owners / total * 100, 1) if total else 0,
+        })
+
+    # Land ownership distribution by size
+    land_size_buckets = [
+        ("No Land", Beneficiary.land_ownership == False),
+        ("< 0.5 ha", (Beneficiary.land_ownership == True) & (Beneficiary.land_size < 0.5)),
+        ("0.5–1 ha", (Beneficiary.land_ownership == True) & (Beneficiary.land_size >= 0.5) & (Beneficiary.land_size < 1)),
+        ("1–2 ha", (Beneficiary.land_ownership == True) & (Beneficiary.land_size >= 1) & (Beneficiary.land_size < 2)),
+        ("2+ ha", (Beneficiary.land_ownership == True) & (Beneficiary.land_size >= 2)),
+    ]
+    land_ownership_dist = []
+    for label, condition in land_size_buckets:
+        cnt = (await db.execute(
+            select(func.count()).select_from(Beneficiary).where(exc, condition)
+        )).scalar() or 0
+        land_ownership_dist.append({"category": label, "value": cnt})
+
+    # Housing quality indicators
+    tiles_floor = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.floor_tiles == True)
+    )).scalar() or 0
+    uses_gas = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.cooking_gas == True)
+    )).scalar() or 0
+    uses_charcoal = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.cooking_charcoal == True)
+    )).scalar() or 0
+    uses_firewood = (await db.execute(
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.cooking_firewood == True)
+    )).scalar() or 0
+    housing_quality = [
+        {"quality": "Earth/Sand Floor", "count": earth_floor or 0},
+        {"quality": "Tile Floor", "count": tiles_floor},
+        {"quality": "Has Lighting", "count": has_lighting or 0},
+        {"quality": "Cooks w/ Gas", "count": uses_gas},
+        {"quality": "Cooks w/ Charcoal", "count": uses_charcoal},
+        {"quality": "Cooks w/ Firewood", "count": uses_firewood},
+    ]
+
+    # Assets distribution
+    assets_types = [
+        ("Radio", Beneficiary.num_radio),
+        ("Phone", Beneficiary.num_phone),
+        ("TV", Beneficiary.num_tv),
+    ]
+    assets_distribution = []
+    for label, col in assets_types:
+        owners = (await db.execute(
+            select(func.count()).select_from(Beneficiary).where(exc, col > 0)
+        )).scalar() or 0
+        assets_distribution.append({
+            "category": label,
+            "owners": owners,
+            "percentage": round(owners / total * 100, 1) if total else 0,
+        })
+
     return {
         "land_ownership_rate": land_owners / total if total else 0,
         "avg_cattle": float(avg_cattle) if avg_cattle else 0,
@@ -188,6 +317,10 @@ async def get_socioeconomic(
         "lighting_rate": has_lighting / total if total else 0,
         "avg_household_size": float(avg_hh) if avg_hh else 0,
         "total": total,
+        "livestock_ownership": livestock_ownership,
+        "land_ownership": land_ownership_dist,
+        "housing_quality": housing_quality,
+        "assets_distribution": assets_distribution,
     }
 
 
@@ -232,7 +365,7 @@ async def get_impact_dashboard(
         exc,
         Beneficiary.skillcraft_score.is_not(None),
         Beneficiary.pathways_completion_rate >= 80,
-        Beneficiary.offline_attendance >= 7,
+        Beneficiary.offline_attendance > 8,
     )
     emp_total = (await db.execute(
         select(func.count()).select_from(Beneficiary).where(*employable_filter)
