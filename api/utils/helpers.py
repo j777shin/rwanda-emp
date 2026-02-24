@@ -8,6 +8,7 @@ from models.user import User
 # They still exist in the DB for login/testing but are hidden from analytics and lists.
 TEST_ACCOUNT_EMAILS = {
     "test@gmail.com",
+    "admin@rwanda.gov.rw",
 }
 
 

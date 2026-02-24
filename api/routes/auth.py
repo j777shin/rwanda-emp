@@ -11,6 +11,7 @@ from models.user import User
 from models.beneficiary import Beneficiary
 from models.chatbot import ChatbotConversation, ChatbotResult, ChatbotStage
 from models.survey import SurveyResponse
+from models.activity_log import ActivityLog
 from middleware.auth import verify_password, create_token, get_current_user
 from utils.helpers import TEST_ACCOUNT_EMAILS
 
@@ -113,11 +114,16 @@ async def logout(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Logout endpoint. For test accounts, resets all progress data to initial state."""
+    """Logout endpoint. For test accounts, resets beneficiary progress data to initial state.
+    Admin accounts: no auto-cleanup (use the delete button in Account Management instead)."""
     if user.email not in TEST_ACCOUNT_EMAILS:
         return {"success": True}
 
-    # Test account — reset all progress data
+    # Admin — nothing to reset on logout
+    if user.role == "admin":
+        return {"success": True}
+
+    # --- Beneficiary test account cleanup: reset progress data ---
     ben_result = await db.execute(
         select(Beneficiary).where(Beneficiary.user_id == user.id)
     )

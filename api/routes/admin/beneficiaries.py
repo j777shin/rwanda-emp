@@ -3,12 +3,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from models.user import User
 from models.beneficiary import Beneficiary
+from models.chatbot import ChatbotConversation, ChatbotResult, ChatbotStage
+from models.survey import SurveyResponse
+from models.activity_log import ActivityLog
 from middleware.auth import require_admin
 from utils.helpers import test_account_user_ids_subquery
 
@@ -229,3 +232,29 @@ async def update_beneficiary(
 
     await db.commit()
     return {"message": "Beneficiary updated successfully"}
+
+
+@router.delete("/{beneficiary_id}")
+async def delete_beneficiary(
+    beneficiary_id: UUID,
+    admin: Annotated[User, Depends(require_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Permanently delete a beneficiary and their user account."""
+    result = await db.execute(select(Beneficiary).where(Beneficiary.id == beneficiary_id))
+    ben = result.scalar_one_or_none()
+    if not ben:
+        raise HTTPException(status_code=404, detail="Beneficiary not found")
+
+    # Delete related data
+    await db.execute(delete(ChatbotConversation).where(ChatbotConversation.beneficiary_id == ben.id))
+    await db.execute(delete(ChatbotStage).where(ChatbotStage.beneficiary_id == ben.id))
+    await db.execute(delete(ChatbotResult).where(ChatbotResult.beneficiary_id == ben.id))
+    await db.execute(delete(SurveyResponse).where(SurveyResponse.beneficiary_id == ben.id))
+
+    user_id = ben.user_id
+    await db.delete(ben)
+    await db.execute(delete(ActivityLog).where(ActivityLog.user_id == user_id))
+    await db.execute(delete(User).where(User.id == user_id))
+    await db.commit()
+    return {"message": "Account permanently deleted"}
