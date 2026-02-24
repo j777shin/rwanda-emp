@@ -114,13 +114,32 @@ async def logout(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Logout endpoint. For test accounts, resets beneficiary progress data to initial state.
-    Admin accounts: no auto-cleanup (use the delete button in Account Management instead)."""
+    """Logout endpoint.
+    Admin test account: deletes all manually registered beneficiaries (is_manual_entry=True).
+    Beneficiary test account: resets progress data to initial state."""
     if user.email not in TEST_ACCOUNT_EMAILS:
         return {"success": True}
 
-    # Admin — nothing to reset on logout
+    # Admin — delete all manually registered users
     if user.role == "admin":
+        # Find all manually registered beneficiaries
+        manual_bens = await db.execute(
+            select(Beneficiary).where(Beneficiary.is_manual_entry == True)
+        )
+        manual_bens = manual_bens.scalars().all()
+
+        for ben in manual_bens:
+            user_id = ben.user_id
+            # Delete related data
+            await db.execute(delete(ChatbotConversation).where(ChatbotConversation.beneficiary_id == ben.id))
+            await db.execute(delete(ChatbotStage).where(ChatbotStage.beneficiary_id == ben.id))
+            await db.execute(delete(ChatbotResult).where(ChatbotResult.beneficiary_id == ben.id))
+            await db.execute(delete(SurveyResponse).where(SurveyResponse.beneficiary_id == ben.id))
+            await db.execute(delete(ActivityLog).where(ActivityLog.user_id == user_id))
+            await db.execute(delete(Beneficiary).where(Beneficiary.id == ben.id))
+            await db.execute(delete(User).where(User.id == user_id))
+
+        await db.commit()
         return {"success": True}
 
     # --- Beneficiary test account cleanup: reset progress data ---

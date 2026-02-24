@@ -90,7 +90,7 @@ async def upload_csv(
         await db.flush()
 
         # Create beneficiary
-        ben = Beneficiary(user_id=user.id, **rec)
+        ben = Beneficiary(user_id=user.id, is_manual_entry=True, **rec)
         db.add(ben)
         created += 1
 
@@ -126,7 +126,7 @@ async def register_manual(
     await db.flush()
 
     ben_data = body.model_dump(exclude={"email"})
-    ben = Beneficiary(user_id=user.id, **ben_data)
+    ben = Beneficiary(user_id=user.id, is_manual_entry=True, **ben_data)
     db.add(ben)
     await db.commit()
 

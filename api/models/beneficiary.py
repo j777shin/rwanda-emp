@@ -94,6 +94,9 @@ class Beneficiary(Base):
     business_development_text: Mapped[str | None] = mapped_column(Text)
     wants_entrepreneurship: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Manual entry flag (True = registered via admin portal, deleted on admin logout)
+    is_manual_entry: Mapped[bool] = mapped_column(Boolean, default=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
