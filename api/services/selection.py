@@ -83,7 +83,7 @@ async def calculate_all_pmt_scores(db: AsyncSession) -> dict:
             "district": ben.district,
         }
         pmt_score = calculate_pmt_score(data)
-        ben.eligibility_score = pmt_score
+        ben.eligibility_score = round(100 - pmt_score, 2)
         count += 1
 
     await db.commit()
@@ -91,15 +91,15 @@ async def calculate_all_pmt_scores(db: AsyncSession) -> dict:
 
 
 async def select_phase1_beneficiaries(db: AsyncSession, count: int = 9000) -> dict:
-    """Select top N most vulnerable non-test beneficiaries (lowest PMT scores) for Phase 1."""
+    """Select top N most vulnerable non-test beneficiaries (highest eligibility scores) for Phase 1."""
     exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
-    # Get all pending beneficiaries ordered by PMT score (ascending = most vulnerable first)
+    # Get all pending beneficiaries ordered by eligibility score (descending = most vulnerable first)
     result = await db.execute(
         select(Beneficiary)
         .where(exc)
         .where(Beneficiary.selection_status == "pending")
         .where(Beneficiary.eligibility_score.is_not(None))
-        .order_by(Beneficiary.eligibility_score.asc())
+        .order_by(Beneficiary.eligibility_score.desc())
     )
     all_pending = result.scalars().all()
 
@@ -139,6 +139,54 @@ async def assign_tracks(
     return {"assigned": count, "track": track}
 
 
+def _generate_skillcraft_scores() -> dict:
+    """Generate random W/E sub-scores matching the Algorithm Part 1 structure."""
+    def _rand() -> float:
+        return round(random.uniform(0.1, 1.0), 4)
+
+    w_sub = {
+        "corsi": {"score": _rand(), "max_span": random.randint(3, 7)},
+        "cpt": {"score": _rand(), "percent_correct": round(random.uniform(50, 100), 1)},
+        "digit_span": {"score": _rand(), "forward_max_n": random.randint(3, 9), "part_a": _rand(),
+                        "backward_max_n": random.randint(2, 8), "part_b": _rand()},
+        "tmt": {"score": _rand(), "trail_a_time": round(random.uniform(20, 120), 1), "part_a": _rand(),
+                "trail_b_time": round(random.uniform(40, 300), 1), "part_b": _rand()},
+        "social_awareness": {"score": _rand()},
+        "self_management": {"score": _rand()},
+        "self_awareness": {"score": _rand()},
+        "agreeableness": {"score": _rand()},
+        "conscientiousness": {"score": _rand()},
+        "realistic": {"score": _rand()},
+        "investigative": {"score": _rand()},
+        "artistic": {"score": _rand()},
+        "social": {"score": _rand()},
+        "conventional": {"score": _rand()},
+    }
+    e_sub = {
+        "digit_span": w_sub["digit_span"],
+        "hmt": {"score": _rand(), "correct_sum": random.randint(3, 10), "num_trials": 10},
+        "conscientiousness": w_sub["conscientiousness"],
+        "openness": {"score": _rand()},
+        "growth_mindset": {"score": _rand()},
+        "bret": {"score": _rand(), "mean_parcels_collected": round(random.uniform(5, 25), 1)},
+        "proactive": {"score": _rand()},
+        "mtpt": {"score": _rand(), "max_completion_percent": round(random.uniform(0.5, 1.0), 2),
+                 "round_time": random.randint(30000, 127000)},
+        "enterprising": {"score": _rand()},
+    }
+    w_score = round(sum(s["score"] for s in w_sub.values()) / 14, 4)
+    e_score = round(sum(s["score"] for s in e_sub.values()) / 9, 4)
+    # skillcraft_score = average of all sub-scores × 100
+    all_scores = [s["score"] for s in w_sub.values()] + [s["score"] for s in e_sub.values()]
+    skillcraft_score = round(sum(all_scores) / len(all_scores) * 100, 2)
+    return {
+        "skillcraft_score": skillcraft_score,
+        "w_score": w_score,
+        "e_score": e_score,
+        "scores": {"w_sub_scores": w_sub, "e_sub_scores": e_sub},
+    }
+
+
 async def apply_phase1_results(db: AsyncSession) -> dict:
     """Generate simulated Phase 1 training results for all selected beneficiaries."""
     exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
@@ -149,7 +197,14 @@ async def apply_phase1_results(db: AsyncSession) -> dict:
 
     ent_count = 0
     for ben in beneficiaries:
-        ben.skillcraft_score = random.randint(50, 100)
+        # --- SkillCraft scores (simulated) ---
+        sc = _generate_skillcraft_scores()
+        ben.skillcraft_score = sc["skillcraft_score"]
+        ben.w_score = sc["w_score"]
+        ben.e_score = sc["e_score"]
+        ben.skillcraft_scores = sc["scores"]
+
+        # --- Other Phase 1 results (simulated) ---
         ben.pathways_completion_rate = random.randint(20, 100)
         ben.offline_attendance = random.randint(7, 10)
         ben.wants_entrepreneurship = random.random() < 0.70
@@ -170,8 +225,8 @@ def _generate_phase1_survey() -> tuple[dict, float]:
     """
     responses = {}
     for q in _PHASE1_SURVEY_QUESTIONS:
-        # Weighted towards 3-5 to simulate generally positive training feedback
-        responses[q] = random.choices([1, 2, 3, 4, 5], weights=[5, 10, 25, 35, 25])[0]
+        # Weighted heavily towards 4-5 to target average ~4.3+
+        responses[q] = random.choices([1, 2, 3, 4, 5], weights=[1, 2, 7, 35, 55])[0]
 
     ratings = list(responses.values())
     avg_score = sum(ratings) / len(ratings) * 20  # Scale 1-5 → 0-100
@@ -212,15 +267,17 @@ async def run_phase2_selection(db: AsyncSession, ent_count: int = 3000) -> dict:
             survey_count += 1
 
     # Score entrepreneurship applicants
+    # Composite = skillcraft_score + pathways_completion_rate + offline_attendance*10 + e_score*100 + word_count
     ent_applicants = []
     non_applicants = []
     for ben in beneficiaries:
         if ben.wants_entrepreneurship:
             word_count = len(ben.business_development_text.split()) if ben.business_development_text else 0
             composite = (
-                (ben.skillcraft_score or 0)
-                + (ben.pathways_completion_rate or 0)
-                + (ben.offline_attendance or 0) * 10
+                float(ben.skillcraft_score or 0)
+                + float(ben.pathways_completion_rate or 0)
+                + float(ben.offline_attendance or 0) * 10
+                + float(ben.e_score or 0) * 100
                 + word_count
             )
             ent_applicants.append((ben, composite))

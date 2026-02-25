@@ -77,6 +77,9 @@ CREATE TABLE beneficiaries (
     -- SkillCraft & Pathways 
     skillcraft_user_id VARCHAR(100),
     skillcraft_score DECIMAL(5, 2),
+    w_score DECIMAL(5, 4),
+    e_score DECIMAL(5, 4),
+    skillcraft_scores JSONB,
     skillcraft_last_sync TIMESTAMP,
     
     pathways_user_id VARCHAR(100),
@@ -107,6 +110,9 @@ CREATE TABLE beneficiaries (
     -- Business development (for entrepreneurship interest)
     business_development_text TEXT,
     wants_entrepreneurship BOOLEAN DEFAULT FALSE,
+
+    -- Manual entry flag (True = registered via admin portal)
+    is_manual_entry BOOLEAN DEFAULT FALSE,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

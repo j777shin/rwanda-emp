@@ -1,7 +1,7 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select, func, case
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func, case, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -13,6 +13,19 @@ from middleware.auth import require_admin
 from utils.helpers import test_account_user_ids_subquery
 
 router = APIRouter()
+
+VALID_PHASES = {"phase1", "phase2_employment", "phase2_entrepreneurship"}
+
+
+def _phase_filter(phase: Optional[str]):
+    """Return an extra WHERE clause for the given phase, or True (no-op)."""
+    if phase == "phase1":
+        return Beneficiary.selection_status == "selected"
+    if phase == "phase2_employment":
+        return Beneficiary.track == "employment"
+    if phase == "phase2_entrepreneurship":
+        return Beneficiary.track == "entrepreneurship"
+    return True
 
 
 @router.get("/overview")
@@ -63,12 +76,14 @@ async def get_overview(
 async def get_demographics(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    phase: Optional[str] = Query(None, description="Filter: phase1, phase2_employment, phase2_entrepreneurship"),
 ):
     exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
+    pf = _phase_filter(phase)
 
     # Gender distribution
     gender_result = await db.execute(
-        select(Beneficiary.gender, func.count()).where(exc).group_by(Beneficiary.gender)
+        select(Beneficiary.gender, func.count()).where(exc, pf).group_by(Beneficiary.gender)
     )
     gender = {row[0] or "unknown": row[1] for row in gender_result.all()}
 
@@ -82,14 +97,14 @@ async def get_demographics(
                 (Beneficiary.age.between(30, 35), "30-35"),
             ).label("age_group"),
             func.count(),
-        ).where(exc).group_by("age_group")
+        ).where(exc, pf).group_by("age_group")
     )
     age = {row[0]: row[1] for row in age_result.all() if row[0]}
 
     # Education distribution
     edu_result = await db.execute(
         select(Beneficiary.education_level, func.count())
-        .where(exc, Beneficiary.education_level.is_not(None))
+        .where(exc, pf, Beneficiary.education_level.is_not(None))
         .group_by(Beneficiary.education_level)
     )
     education = {row[0]: row[1] for row in edu_result.all()}
@@ -97,7 +112,7 @@ async def get_demographics(
     # District distribution
     district_result = await db.execute(
         select(Beneficiary.district, func.count())
-        .where(exc, Beneficiary.district.is_not(None))
+        .where(exc, pf, Beneficiary.district.is_not(None))
         .group_by(Beneficiary.district)
         .order_by(func.count().desc())
     )
@@ -105,37 +120,37 @@ async def get_demographics(
 
     # Marriage status distribution
     married_count = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.marriage_status == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.marriage_status == True)
     )).scalar()
     unmarried_count = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.marriage_status == False)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.marriage_status == False)
     )).scalar()
     marriage_status = {"Married": married_count, "Unmarried": unmarried_count}
 
     # Disability distribution
     disabled_count = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.disability == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.disability == True)
     )).scalar()
     no_disability_count = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.disability == False)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.disability == False)
     )).scalar()
     disability = {"Has Disability": disabled_count, "No Disability": no_disability_count}
 
     # Occupation distribution
     has_occupation = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.occupation == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.occupation == True)
     )).scalar()
     no_occupation = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.occupation == False)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.occupation == False)
     )).scalar()
     occupation = {"Has Occupation": has_occupation, "No Occupation": no_occupation}
 
     # Informal working distribution
     informal_yes = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.informal_working == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.informal_working == True)
     )).scalar()
     informal_no = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.informal_working == False)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.informal_working == False)
     )).scalar()
     informal_working = {"Informal": informal_yes, "Formal / None": informal_no}
 
@@ -149,7 +164,7 @@ async def get_demographics(
                 (Beneficiary.household_size >= 7, "7+"),
             ).label("hh_group"),
             func.count(),
-        ).where(exc, Beneficiary.household_size > 0).group_by("hh_group")
+        ).where(exc, pf, Beneficiary.household_size > 0).group_by("hh_group")
     )
     household_size_groups = {row[0]: row[1] for row in hh_result.all() if row[0]}
 
@@ -211,29 +226,31 @@ async def get_engagement(
 async def get_socioeconomic(
     admin: Annotated[User, Depends(require_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    phase: Optional[str] = Query(None, description="Filter: phase1, phase2_employment, phase2_entrepreneurship"),
 ):
     exc = Beneficiary.user_id.not_in(test_account_user_ids_subquery())
+    pf = _phase_filter(phase)
 
     # Land ownership
     land_owners = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.land_ownership == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.land_ownership == True)
     )).scalar()
-    total = (await db.execute(select(func.count()).select_from(Beneficiary).where(exc))).scalar()
+    total = (await db.execute(select(func.count()).select_from(Beneficiary).where(exc, pf))).scalar()
 
     # Avg livestock
-    avg_cattle = (await db.execute(select(func.avg(Beneficiary.num_cattle)).where(exc))).scalar()
-    avg_goats = (await db.execute(select(func.avg(Beneficiary.num_goats)).where(exc))).scalar()
+    avg_cattle = (await db.execute(select(func.avg(Beneficiary.num_cattle)).where(exc, pf))).scalar()
+    avg_goats = (await db.execute(select(func.avg(Beneficiary.num_goats)).where(exc, pf))).scalar()
 
     # Housing
     earth_floor = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.floor_earth_sand == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.floor_earth_sand == True)
     )).scalar()
     has_lighting = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.lighting == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.lighting == True)
     )).scalar()
 
     # Avg household size
-    avg_hh = (await db.execute(select(func.avg(Beneficiary.household_size)).where(exc))).scalar()
+    avg_hh = (await db.execute(select(func.avg(Beneficiary.household_size)).where(exc, pf))).scalar()
 
     # --- Distribution arrays for charts ---
 
@@ -247,7 +264,7 @@ async def get_socioeconomic(
     livestock_ownership = []
     for label, col in livestock_types:
         owners = (await db.execute(
-            select(func.count()).select_from(Beneficiary).where(exc, col > 0)
+            select(func.count()).select_from(Beneficiary).where(exc, pf, col > 0)
         )).scalar() or 0
         livestock_ownership.append({
             "category": label,
@@ -266,22 +283,22 @@ async def get_socioeconomic(
     land_ownership_dist = []
     for label, condition in land_size_buckets:
         cnt = (await db.execute(
-            select(func.count()).select_from(Beneficiary).where(exc, condition)
+            select(func.count()).select_from(Beneficiary).where(exc, pf, condition)
         )).scalar() or 0
         land_ownership_dist.append({"category": label, "value": cnt})
 
     # Housing quality indicators
     tiles_floor = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.floor_tiles == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.floor_tiles == True)
     )).scalar() or 0
     uses_gas = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.cooking_gas == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.cooking_gas == True)
     )).scalar() or 0
     uses_charcoal = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.cooking_charcoal == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.cooking_charcoal == True)
     )).scalar() or 0
     uses_firewood = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.cooking_firewood == True)
+        select(func.count()).select_from(Beneficiary).where(exc, pf, Beneficiary.cooking_firewood == True)
     )).scalar() or 0
     housing_quality = [
         {"quality": "Earth/Sand Floor", "count": earth_floor or 0},
@@ -301,7 +318,7 @@ async def get_socioeconomic(
     assets_distribution = []
     for label, col in assets_types:
         owners = (await db.execute(
-            select(func.count()).select_from(Beneficiary).where(exc, col > 0)
+            select(func.count()).select_from(Beneficiary).where(exc, pf, col > 0)
         )).scalar() or 0
         assets_distribution.append({
             "category": label,

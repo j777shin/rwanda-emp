@@ -31,6 +31,9 @@ class BeneficiaryListItem(BaseModel):
     track: str | None
     eligibility_score: float | None
     skillcraft_score: float | None
+    w_score: float | None = None
+    e_score: float | None = None
+    skillcraft_scores: dict | None = None
     pathways_completion_rate: float | None
     pathways_course_progress: dict | None = None
     offline_attendance: int
@@ -133,6 +136,9 @@ async def list_beneficiaries(
             track=ben.track,
             eligibility_score=float(ben.eligibility_score) if ben.eligibility_score else None,
             skillcraft_score=float(ben.skillcraft_score) if ben.skillcraft_score else None,
+            w_score=float(ben.w_score) if ben.w_score else None,
+            e_score=float(ben.e_score) if ben.e_score else None,
+            skillcraft_scores=ben.skillcraft_scores,
             pathways_completion_rate=float(ben.pathways_completion_rate) if ben.pathways_completion_rate else None,
             pathways_course_progress=ben.pathways_course_progress,
             offline_attendance=ben.offline_attendance,

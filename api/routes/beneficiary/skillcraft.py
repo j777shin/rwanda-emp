@@ -92,6 +92,9 @@ async def sync_skillcraft(
 
     if result.get("score") is not None:
         ben.skillcraft_score = result["score"]
+        ben.w_score = result.get("w_score")
+        ben.e_score = result.get("e_score")
+        ben.skillcraft_scores = result.get("scores")
         ben.skillcraft_last_sync = datetime.utcnow()
 
         # Also save skillcraft_user_id if not already set
@@ -101,7 +104,13 @@ async def sync_skillcraft(
                 ben.skillcraft_user_id = sign_in["skillcraft_user_id"]
 
         await db.commit()
-        return {"message": "SkillCraft score synced", "score": result["score"]}
+        return {
+            "message": "SkillCraft score synced",
+            "score": result["score"],
+            "w_score": result.get("w_score"),
+            "e_score": result.get("e_score"),
+            "scores": result.get("scores"),
+        }
 
     return {
         "message": "Assessment not yet completed",

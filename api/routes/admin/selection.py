@@ -9,6 +9,7 @@ from database import get_db
 from models.user import User
 from models.beneficiary import Beneficiary
 from models.survey import SurveyResponse
+from models.chatbot import ChatbotConversation, ChatbotStage, ChatbotResult
 from middleware.auth import require_admin
 from services.selection import (
     calculate_all_pmt_scores,
@@ -167,6 +168,9 @@ async def reset_phase2_selection(
         .values(
             track=None,
             skillcraft_score=None,
+            w_score=None,
+            e_score=None,
+            skillcraft_scores=None,
             pathways_completion_rate=None,
             offline_attendance=0,
             wants_entrepreneurship=False,
@@ -175,12 +179,16 @@ async def reset_phase2_selection(
             grant_amount=0,
             hired=False,
             self_employed=False,
+            hired_company_name=None,
+            self_employed_description=None,
             phase1_satisfactory=None,
+            emp_track_satisfactory=None,
+            ent_track_satisfactory=None,
         )
     )
     result = await db.execute(stmt)
 
-    # Delete generated phase1 survey responses for non-test selected beneficiaries
+    # Get non-test selected beneficiary IDs for related data cleanup
     non_test_ben_ids = await db.execute(
         select(Beneficiary.id).where(
             Beneficiary.user_id.not_in(test_user_ids) if test_user_ids else True,
@@ -189,16 +197,32 @@ async def reset_phase2_selection(
     )
     ben_ids = [row[0] for row in non_test_ben_ids.all()]
     if ben_ids:
+        # Delete all survey responses (phase1, employment, entrepreneurship)
         await db.execute(
             delete(SurveyResponse).where(
                 SurveyResponse.beneficiary_id.in_(ben_ids),
-                SurveyResponse.survey_type == "phase1",
+            )
+        )
+        # Delete chatbot data
+        await db.execute(
+            delete(ChatbotConversation).where(
+                ChatbotConversation.beneficiary_id.in_(ben_ids),
+            )
+        )
+        await db.execute(
+            delete(ChatbotStage).where(
+                ChatbotStage.beneficiary_id.in_(ben_ids),
+            )
+        )
+        await db.execute(
+            delete(ChatbotResult).where(
+                ChatbotResult.beneficiary_id.in_(ben_ids),
             )
         )
 
     await db.commit()
 
-    return {"message": "Phase 2 reset complete", "reset_count": result.rowcount}
+    return {"message": "Phase 2 reset complete — all generated data cleared", "reset_count": result.rowcount}
 
 
 @router.get("/eligibility/stats")
