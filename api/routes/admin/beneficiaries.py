@@ -34,8 +34,8 @@ class BeneficiaryListItem(BaseModel):
     w_score: float | None = None
     e_score: float | None = None
     skillcraft_scores: dict | None = None
-    pathways_completion_rate: float | None
-    pathways_course_progress: dict | None = None
+    ingazi_completion_rate: float | None
+    ingazi_course_progress: dict | None = None
     offline_attendance: int
     hired: bool
     wants_entrepreneurship: bool
@@ -139,8 +139,8 @@ async def list_beneficiaries(
             w_score=float(ben.w_score) if ben.w_score else None,
             e_score=float(ben.e_score) if ben.e_score else None,
             skillcraft_scores=ben.skillcraft_scores,
-            pathways_completion_rate=float(ben.pathways_completion_rate) if ben.pathways_completion_rate else None,
-            pathways_course_progress=ben.pathways_course_progress,
+            ingazi_completion_rate=float(ben.ingazi_completion_rate) if ben.ingazi_completion_rate else None,
+            ingazi_course_progress=ben.ingazi_course_progress,
             offline_attendance=ben.offline_attendance,
             hired=ben.hired,
             wants_entrepreneurship=ben.wants_entrepreneurship,
@@ -208,8 +208,8 @@ async def get_beneficiary(
         "track": ben.track,
         "eligibility_score": float(ben.eligibility_score) if ben.eligibility_score else None,
         "skillcraft_score": float(ben.skillcraft_score) if ben.skillcraft_score else None,
-        "pathways_completion_rate": float(ben.pathways_completion_rate) if ben.pathways_completion_rate else None,
-        "pathways_course_progress": ben.pathways_course_progress,
+        "ingazi_completion_rate": float(ben.ingazi_completion_rate) if ben.ingazi_completion_rate else None,
+        "ingazi_course_progress": ben.ingazi_course_progress,
         "offline_attendance": ben.offline_attendance,
         "self_employed": ben.self_employed,
         "hired": ben.hired,

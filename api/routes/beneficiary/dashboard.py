@@ -62,8 +62,8 @@ async def get_dashboard(
         "phase1": {
             "skillcraft_score": float(ben.skillcraft_score) if ben.skillcraft_score else None,
             "skillcraft_completed": ben.skillcraft_score is not None,
-            "pathways_completion_rate": float(ben.pathways_completion_rate) if ben.pathways_completion_rate else None,
-            "pathways_enrolled": ben.pathways_user_id is not None,
+            "ingazi_completion_rate": float(ben.ingazi_completion_rate) if ben.ingazi_completion_rate else None,
+            "ingazi_enrolled": ben.ingazi_user_id is not None,
             "business_dev_completed": ben.wants_entrepreneurship and bool(ben.business_development_text),
             "wants_entrepreneurship": ben.wants_entrepreneurship,
             "offline_attendance": ben.offline_attendance,

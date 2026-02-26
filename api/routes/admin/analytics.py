@@ -49,8 +49,8 @@ async def get_overview(
     avg_skillcraft = (await db.execute(
         select(func.avg(Beneficiary.skillcraft_score)).where(exc, Beneficiary.skillcraft_score.is_not(None))
     )).scalar()
-    avg_pathways = (await db.execute(
-        select(func.avg(Beneficiary.pathways_completion_rate)).where(exc, Beneficiary.pathways_completion_rate.is_not(None))
+    avg_ingazi = (await db.execute(
+        select(func.avg(Beneficiary.ingazi_completion_rate)).where(exc, Beneficiary.ingazi_completion_rate.is_not(None))
     )).scalar()
     avg_eligibility = (await db.execute(
         select(func.avg(Beneficiary.eligibility_score)).where(exc, Beneficiary.eligibility_score.is_not(None))
@@ -66,7 +66,7 @@ async def get_overview(
         "employment_track": employment,
         "entrepreneurship_track": entrepreneurship,
         "avg_skillcraft_score": float(avg_skillcraft) if avg_skillcraft else None,
-        "avg_pathways_rate": float(avg_pathways) if avg_pathways else None,
+        "avg_ingazi_rate": float(avg_ingazi) if avg_ingazi else None,
         "avg_eligibility_score": float(avg_eligibility) if avg_eligibility else None,
         "chatbot_sessions": chatbot_sessions,
     }
@@ -196,9 +196,9 @@ async def get_engagement(
         select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.skillcraft_score.is_not(None))
     )).scalar()
 
-    # Pathways enrollment
+    # Ingazi enrollment
     pw_enrolled = (await db.execute(
-        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.pathways_user_id.is_not(None))
+        select(func.count()).select_from(Beneficiary).where(exc, Beneficiary.ingazi_user_id.is_not(None))
     )).scalar()
 
     # Business dev submissions
@@ -216,7 +216,7 @@ async def get_engagement(
 
     return {
         "skillcraft": {"total": sc_total, "completed": sc_completed},
-        "pathways": {"enrolled": pw_enrolled},
+        "ingazi": {"enrolled": pw_enrolled},
         "business_development": {"submitted": bd_submitted},
         "chatbot": {"unique_users": chatbot_users, "total_messages": total_messages},
     }
@@ -381,7 +381,7 @@ async def get_impact_dashboard(
     employable_filter = (
         exc,
         Beneficiary.skillcraft_score.is_not(None),
-        Beneficiary.pathways_completion_rate >= 80,
+        Beneficiary.ingazi_completion_rate >= 80,
         Beneficiary.offline_attendance > 8,
     )
     emp_total = (await db.execute(

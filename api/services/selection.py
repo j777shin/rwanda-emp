@@ -205,7 +205,7 @@ async def apply_phase1_results(db: AsyncSession) -> dict:
         ben.skillcraft_scores = sc["scores"]
 
         # --- Other Phase 1 results (simulated) ---
-        ben.pathways_completion_rate = random.randint(20, 100)
+        ben.ingazi_completion_rate = random.randint(20, 100)
         ben.offline_attendance = random.randint(7, 10)
         ben.wants_entrepreneurship = random.random() < 0.70
         if ben.wants_entrepreneurship:
@@ -267,7 +267,7 @@ async def run_phase2_selection(db: AsyncSession, ent_count: int = 3000) -> dict:
             survey_count += 1
 
     # Score entrepreneurship applicants
-    # Composite = skillcraft_score + pathways_completion_rate + offline_attendance*10 + e_score*100 + word_count
+    # Composite = skillcraft_score + ingazi_completion_rate + offline_attendance*10 + e_score*100 + word_count
     ent_applicants = []
     non_applicants = []
     for ben in beneficiaries:
@@ -275,7 +275,7 @@ async def run_phase2_selection(db: AsyncSession, ent_count: int = 3000) -> dict:
             word_count = len(ben.business_development_text.split()) if ben.business_development_text else 0
             composite = (
                 float(ben.skillcraft_score or 0)
-                + float(ben.pathways_completion_rate or 0)
+                + float(ben.ingazi_completion_rate or 0)
                 + float(ben.offline_attendance or 0) * 10
                 + float(ben.e_score or 0) * 100
                 + word_count
@@ -299,10 +299,12 @@ async def run_phase2_selection(db: AsyncSession, ent_count: int = 3000) -> dict:
             ent_beneficiaries.append(ben)
         else:
             ben.track = "employment"
+            ben.ingazi_completion_rate = 0
             emp_selected += 1
 
     for ben in non_applicants:
         ben.track = "employment"
+        ben.ingazi_completion_rate = 0
         emp_selected += 1
 
     # --- Generate outcome data for entrepreneurship track ---

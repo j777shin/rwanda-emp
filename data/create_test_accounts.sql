@@ -127,7 +127,12 @@ SELECT
     'both',
     TRUE,
     FALSE,
-    'I want to open a tailoring shop in Kicukiro district that makes affordable, trendy clothes for young people in Rwanda. Many youth want modern outfits for school events, church, and going out, but imported clothes are expensive and local tailors mostly cater to older customers. I will offer custom school uniforms, casual streetwear, and event outfits at youth-friendly prices starting from 3,000 RWF. I completed a 6-month tailoring course at a vocational training centre and have been making clothes for friends and family. I already own a sewing machine and basic supplies. My plan is to start from a small rented space near a secondary school, build a customer base through social media and word of mouth, and hire one assistant within six months. Eventually I want to expand into selling my designs online and training other young people in tailoring skills.',
+    'Imanzi Wear – Affordable Urban Fashion in Kigali, Rwanda
+
+Imanzi Wear will launch as a small-scale, print-on-demand clothing brand targeting youth aged 16–35. The initial focus will be on high-quality graphic t-shirts and caps featuring modern Rwandan-inspired designs. Production will follow a pre-order model to minimize inventory risk and reduce upfront costs.
+Business Model:
+
+Designs will be created digitally and printed through partnerships with local printing shops in Kigali. Products will be marketed and sold through Instagram, WhatsApp Business, and university pop-up sales. Customers will place orders during a two-week pre-order campaign, and production will begin after payments are collected, ensuring positive cash flow.',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 FROM new_user
@@ -138,13 +143,18 @@ SET
     gender = 'female',
     contact = '+250788000000',
     skillcraft_score = NULL,
-    pathways_completion_rate = NULL,
+    ingazi_completion_rate = NULL,
     eligibility_score = NULL,
     selection_status = 'selected',
     track = 'both',
     wants_entrepreneurship = TRUE,
     self_employed = FALSE,
-    business_development_text = 'I want to open a tailoring shop in Kicukiro district that makes affordable, trendy clothes for young people in Rwanda. Many youth want modern outfits for school events, church, and going out, but imported clothes are expensive and local tailors mostly cater to older customers. I will offer custom school uniforms, casual streetwear, and event outfits at youth-friendly prices starting from 3,000 RWF. I completed a 6-month tailoring course at a vocational training centre and have been making clothes for friends and family. I already own a sewing machine and basic supplies. My plan is to start from a small rented space near a secondary school, build a customer base through social media and word of mouth, and hire one assistant within six months. Eventually I want to expand into selling my designs online and training other young people in tailoring skills.',
+    business_development_text = 'Imanzi Wear – Affordable Urban Fashion in Kigali, Rwanda
+
+Imanzi Wear will launch as a small-scale, print-on-demand clothing brand targeting youth aged 16–35. The initial focus will be on high-quality graphic t-shirts and caps featuring modern Rwandan-inspired designs. Production will follow a pre-order model to minimize inventory risk and reduce upfront costs.
+Business Model:
+
+Designs will be created digitally and printed through partnerships with local printing shops in Kigali. Products will be marketed and sold through Instagram, WhatsApp Business, and university pop-up sales. Customers will place orders during a two-week pre-order campaign, and production will begin after payments are collected, ensuring positive cash flow.',
     updated_at = CURRENT_TIMESTAMP;
 
 -- ============================================================================

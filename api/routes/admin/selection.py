@@ -171,7 +171,7 @@ async def reset_phase2_selection(
             w_score=None,
             e_score=None,
             skillcraft_scores=None,
-            pathways_completion_rate=None,
+            ingazi_completion_rate=None,
             offline_attendance=0,
             wants_entrepreneurship=False,
             business_development_text=None,

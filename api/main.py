@@ -12,7 +12,7 @@ from routes.admin.phase_dashboards import router as admin_phase_dashboards_route
 from routes.admin.surveys import router as admin_surveys_router
 from routes.admin.sync import router as admin_sync_router
 from routes.beneficiary.skillcraft import router as beneficiary_skillcraft_router
-from routes.beneficiary.pathways import router as beneficiary_pathways_router
+from routes.beneficiary.ingazi import router as beneficiary_ingazi_router
 from routes.beneficiary.business_dev import router as beneficiary_business_dev_router
 from routes.beneficiary.chatbot import router as beneficiary_chatbot_router
 from routes.beneficiary.surveys import router as beneficiary_surveys_router
@@ -47,7 +47,7 @@ app.include_router(admin_sync_router, prefix="/admin/sync", tags=["Admin - Sync"
 # Beneficiary routes
 app.include_router(beneficiary_dashboard_router, prefix="/beneficiary/dashboard", tags=["Beneficiary - Dashboard"])
 app.include_router(beneficiary_skillcraft_router, prefix="/beneficiary/skillcraft", tags=["Beneficiary - SkillCraft"])
-app.include_router(beneficiary_pathways_router, prefix="/beneficiary/pathways", tags=["Beneficiary - Pathways"])
+app.include_router(beneficiary_ingazi_router, prefix="/beneficiary/ingazi", tags=["Beneficiary - Ingazi"])
 app.include_router(beneficiary_business_dev_router, prefix="/beneficiary/business-dev", tags=["Beneficiary - Business Dev"])
 app.include_router(beneficiary_chatbot_router, prefix="/beneficiary/chatbot", tags=["Beneficiary - Chatbot"])
 app.include_router(beneficiary_surveys_router, prefix="/beneficiary/surveys", tags=["Beneficiary - Surveys"])

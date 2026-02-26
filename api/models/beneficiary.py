@@ -62,17 +62,17 @@ class Beneficiary(Base):
     # District
     district: Mapped[str | None] = mapped_column(String(30))
 
-    # SkillCraft & Pathways
+    # SkillCraft & Ingazi
     skillcraft_user_id: Mapped[str | None] = mapped_column(String(100))
     skillcraft_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     w_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     e_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     skillcraft_scores: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     skillcraft_last_sync: Mapped[datetime | None] = mapped_column(DateTime)
-    pathways_user_id: Mapped[str | None] = mapped_column(String(100))
-    pathways_completion_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    pathways_last_sync: Mapped[datetime | None] = mapped_column(DateTime)
-    pathways_course_progress: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    ingazi_user_id: Mapped[str | None] = mapped_column(String(100))
+    ingazi_completion_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    ingazi_last_sync: Mapped[datetime | None] = mapped_column(DateTime)
+    ingazi_course_progress: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Selection & Track
     eligibility_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))

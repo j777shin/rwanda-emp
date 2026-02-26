@@ -36,15 +36,15 @@ async def get_phase1_dashboard(
         .where(exc, Beneficiary.skillcraft_score.is_not(None))
     )).scalar()
 
-    # Pathways stats
+    # Ingazi stats
     pw_enrolled = (await db.execute(
         select(func.count()).select_from(Beneficiary)
         .where(exc, Beneficiary.selection_status == "selected")
-        .where(Beneficiary.pathways_user_id.is_not(None))
+        .where(Beneficiary.ingazi_user_id.is_not(None))
     )).scalar()
     avg_pw = (await db.execute(
-        select(func.avg(Beneficiary.pathways_completion_rate))
-        .where(exc, Beneficiary.pathways_completion_rate.is_not(None))
+        select(func.avg(Beneficiary.ingazi_completion_rate))
+        .where(exc, Beneficiary.ingazi_completion_rate.is_not(None))
     )).scalar()
 
     # Business dev
@@ -67,7 +67,7 @@ async def get_phase1_dashboard(
             "completion_rate": sc_completed / selected if selected else 0,
             "avg_score": float(avg_sc) if avg_sc else None,
         },
-        "pathways": {
+        "ingazi": {
             "enrolled": pw_enrolled,
             "enrollment_rate": pw_enrolled / selected if selected else 0,
             "avg_completion": float(avg_pw) if avg_pw else None,
@@ -139,7 +139,7 @@ async def get_employment_progress(
         select(Beneficiary, User.email)
         .join(User, Beneficiary.user_id == User.id)
         .where(exc, Beneficiary.track == "employment")
-        .order_by(Beneficiary.pathways_completion_rate.desc().nullslast())
+        .order_by(Beneficiary.ingazi_completion_rate.desc().nullslast())
         .limit(100)
     )
     rows = result.all()
@@ -149,7 +149,7 @@ async def get_employment_progress(
             "id": str(ben.id),
             "name": ben.name,
             "email": email,
-            "pathways_completion_rate": float(ben.pathways_completion_rate) if ben.pathways_completion_rate else None,
+            "ingazi_completion_rate": float(ben.ingazi_completion_rate) if ben.ingazi_completion_rate else None,
             "hired": ben.hired,
             "self_employed": ben.self_employed,
             "offline_attendance": ben.offline_attendance,

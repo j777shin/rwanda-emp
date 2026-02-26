@@ -74,7 +74,7 @@ CREATE TABLE beneficiaries (
         'Nyaruguru', 'Rubavu', 'Ruhango', 'Rusizi', 'Rutsiro', 'Rwamagana'
     )),
     
-    -- SkillCraft & Pathways 
+    -- SkillCraft & Ingazi
     skillcraft_user_id VARCHAR(100),
     skillcraft_score DECIMAL(5, 2),
     w_score DECIMAL(5, 4),
@@ -82,10 +82,10 @@ CREATE TABLE beneficiaries (
     skillcraft_scores JSONB,
     skillcraft_last_sync TIMESTAMP,
     
-    pathways_user_id VARCHAR(100),
-    pathways_completion_rate DECIMAL(5, 2),
-    pathways_last_sync TIMESTAMP,
-    pathways_course_progress JSONB,
+    ingazi_user_id VARCHAR(100),
+    ingazi_completion_rate DECIMAL(5, 2),
+    ingazi_last_sync TIMESTAMP,
+    ingazi_course_progress JSONB,
 
     eligibility_score DECIMAL(5, 2),
     selection_status VARCHAR(20) DEFAULT 'pending' CHECK (
@@ -222,7 +222,7 @@ SELECT
     b.hh_head_female,
     b.district,
     b.skillcraft_score,
-    b.pathways_completion_rate,
+    b.ingazi_completion_rate,
     b.eligibility_score,
     b.selection_status,
     b.track,
@@ -246,7 +246,7 @@ SELECT
     COUNT(*) FILTER (WHERE gender = 'male') AS male_count,
     COUNT(*) FILTER (WHERE gender = 'female') AS female_count,
     AVG(skillcraft_score) AS avg_skillcraft,
-    AVG(pathways_completion_rate) AS avg_pathways,
+    AVG(ingazi_completion_rate) AS avg_ingazi,
     AVG(eligibility_score) AS avg_eligibility,
     COUNT(*) FILTER (WHERE track = 'employment') AS employment_track,
     COUNT(*) FILTER (WHERE track = 'entrepreneurship') AS entrepreneurship_track
@@ -270,15 +270,15 @@ CREATE OR REPLACE FUNCTION calculate_eligibility_score(
 ) RETURNS DECIMAL AS $$
 DECLARE
     v_skillcraft DECIMAL;
-    v_pathways DECIMAL;
+    v_ingazi DECIMAL;
     v_socioeconomic DECIMAL;
     v_total DECIMAL;
 BEGIN
     -- Get scores
     SELECT 
         COALESCE(skillcraft_score, 0),
-        COALESCE(pathways_completion_rate, 0)
-    INTO v_skillcraft, v_pathways
+        COALESCE(ingazi_completion_rate, 0)
+    INTO v_skillcraft, v_ingazi
     FROM beneficiaries
     WHERE id = p_beneficiary_id;
     
@@ -298,8 +298,8 @@ BEGIN
     -- Normalize socioeconomic to 0-100
     v_socioeconomic := LEAST(100, GREATEST(0, 100 - (v_socioeconomic * 0.5)));
     
-    -- Calculate weighted total (40% skill, 30% pathways, 30% socioeconomic)
-    v_total := (v_skillcraft * 0.4) + (v_pathways * 0.3) + (v_socioeconomic * 0.3);
+    -- Calculate weighted total (40% skill, 30% ingazi, 30% socioeconomic)
+    v_total := (v_skillcraft * 0.4) + (v_ingazi * 0.3) + (v_socioeconomic * 0.3);
     
     -- Update the beneficiary record
     UPDATE beneficiaries

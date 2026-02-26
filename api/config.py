@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     skillcraft_api_url: str = "https://api-prod.skillcraft.app"
     skillcraft_pilot_group: str = "dr"
 
-    # Pathways (Strapi e-learning platform)
-    pathways_api_url: str = "http://localhost:1337"
+    # Ingazi (Strapi e-learning platform)
+    ingazi_api_url: str = "http://localhost:1337"
 
     # CORS
     frontend_url: str = "http://localhost:5173"

@@ -64,7 +64,7 @@ async def login(body: LoginRequest, db: Annotated[AsyncSession, Depends(get_db)]
                 "track": ben.track,
                 "selection_status": ben.selection_status,
                 "skillcraft_score": float(ben.skillcraft_score) if ben.skillcraft_score else None,
-                "pathways_completion_rate": float(ben.pathways_completion_rate) if ben.pathways_completion_rate else None,
+                "ingazi_completion_rate": float(ben.ingazi_completion_rate) if ben.ingazi_completion_rate else None,
                 "wants_entrepreneurship": ben.wants_entrepreneurship,
             }
 
@@ -97,7 +97,7 @@ async def get_me(user: Annotated[User, Depends(get_current_user)], db: Annotated
                 "track": ben.track,
                 "selection_status": ben.selection_status,
                 "skillcraft_score": float(ben.skillcraft_score) if ben.skillcraft_score else None,
-                "pathways_completion_rate": float(ben.pathways_completion_rate) if ben.pathways_completion_rate else None,
+                "ingazi_completion_rate": float(ben.ingazi_completion_rate) if ben.ingazi_completion_rate else None,
                 "eligibility_score": float(ben.eligibility_score) if ben.eligibility_score else None,
                 "wants_entrepreneurship": ben.wants_entrepreneurship,
                 "business_development_text": ben.business_development_text,
@@ -142,7 +142,7 @@ async def logout(
         await db.commit()
         return {"success": True}
 
-    # --- Beneficiary test account cleanup: reset progress data ---
+    # --- Beneficiary test account cleanup: reset everything to initial state ---
     ben_result = await db.execute(
         select(Beneficiary).where(Beneficiary.user_id == user.id)
     )
@@ -158,14 +158,38 @@ async def logout(
     # Delete survey responses
     await db.execute(delete(SurveyResponse).where(SurveyResponse.beneficiary_id == ben.id))
 
-    # Reset beneficiary fields to initial state
+    # Reset all fields to initial state
+    # SkillCraft
+    ben.skillcraft_user_id = None
     ben.skillcraft_score = None
-    ben.pathways_completion_rate = None
+    ben.w_score = None
+    ben.e_score = None
+    ben.skillcraft_scores = None
+    ben.skillcraft_last_sync = None
+    # Ingazi
+    ben.ingazi_user_id = None
+    ben.ingazi_completion_rate = None
+    ben.ingazi_last_sync = None
+    ben.ingazi_course_progress = None
+    # Selection & track
     ben.eligibility_score = None
+    ben.selection_status = "selected"
+    ben.track = "both"
+    # Employment / programme outcomes
     ben.self_employed = False
     ben.hired = False
     ben.hired_company_name = None
     ben.self_employed_description = None
+    ben.offline_attendance = 0
+    ben.phase1_satisfactory = None
+    ben.emp_track_satisfactory = None
+    ben.ent_track_satisfactory = None
+    # Grant
+    ben.grant_received = False
+    ben.grant_amount = 0
+    # Business development
+    ben.wants_entrepreneurship = True
+    ben.business_development_text = None
 
     await db.commit()
     return {"success": True}
