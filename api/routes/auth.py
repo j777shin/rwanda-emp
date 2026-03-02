@@ -150,12 +150,7 @@ async def logout(
     if not ben:
         return {"success": True}
 
-    # Delete chatbot data (conversations, stages, results)
-    await db.execute(delete(ChatbotConversation).where(ChatbotConversation.beneficiary_id == ben.id))
-    await db.execute(delete(ChatbotStage).where(ChatbotStage.beneficiary_id == ben.id))
-    await db.execute(delete(ChatbotResult).where(ChatbotResult.beneficiary_id == ben.id))
-
-    # Delete survey responses
+    # Delete survey responses only — chatbot history (stages, results) is preserved
     await db.execute(delete(SurveyResponse).where(SurveyResponse.beneficiary_id == ben.id))
 
     # Reset all fields to initial state
@@ -187,9 +182,8 @@ async def logout(
     # Grant
     ben.grant_received = False
     ben.grant_amount = 0
-    # Business development
+    # Business development — preserve text since it's part of chatbot history context
     ben.wants_entrepreneurship = True
-    ben.business_development_text = None
 
     await db.commit()
     return {"success": True}
