@@ -136,7 +136,8 @@ python -m uvicorn main:app \
     --host 0.0.0.0 \
     --port 8001 \
     --reload \
-    --log-level info
+    --log-level info \
+    --workers 4
 
 # Note: Script will not reach here until server is stopped
 echo ""

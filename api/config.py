@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     ingazi_api_url: str = "http://localhost:1337"
 
     # CORS
-    frontend_url: str = "http://localhost:5173"
+    frontend_url: str = "http://50.8.80.203:5173"
 
     @property
     def database_url(self) -> str:
