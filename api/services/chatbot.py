@@ -183,6 +183,10 @@ async def summarize_stage_conversation(
     conversation: list[dict], stage_name: str
 ) -> str:
     """Summarize a stage's conversation into 1-2 sentences using the LLM."""
+    user_messages = [msg for msg in conversation if msg.get("is_user")]
+    if not user_messages:
+        return "No conversation took place during this stage — the participant did not respond."
+
     # Build a text representation of the conversation
     lines = []
     for msg in conversation:
@@ -256,6 +260,17 @@ def _mock_response(messages: list[dict]) -> str:
 
     # Check if this is an assessment generation request (for manual stage 5 finish)
     if "assessment evaluator" in system_msg.lower():
+        # Check if the user content indicates no engagement
+        if "no conversation" in user_msg.lower() or "did not respond" in user_msg.lower():
+            return """Entrepreneurship Readiness Score: 5/100
+Readiness Level: Beginner
+
+Assessment Note: The participant did not engage in meaningful conversation during the assessment. No responses were provided across the mentoring stages.
+
+Recommendations:
+1. Please retake the assessment and actively respond to each stage's questions.
+2. Engage with the mentoring prompts honestly to receive a meaningful evaluation.
+3. Contact your program coordinator if you need support completing the assessment."""
         return """Entrepreneurship Readiness Score: 68/100
 Readiness Level: Intermediate
 
@@ -489,6 +504,25 @@ async def _generate_assessment_from_history(
 
     context_text = "\n".join(context_parts)
 
+    # Check if there is any meaningful engagement
+    no_engagement = not context_parts or all(
+        "no conversation" in part.lower() or "did not respond" in part.lower()
+        for part in context_parts
+    )
+
+    if no_engagement:
+        return (
+            "Entrepreneurship Readiness Score: 5/100\n"
+            "Readiness Level: Beginner\n\n"
+            "Assessment Note: The participant did not engage in any meaningful conversation "
+            "during the chatbot assessment. No responses were provided across any of the "
+            "mentoring stages, so a valid readiness score cannot be generated.\n\n"
+            "Recommendations:\n"
+            "1. Please retake the assessment and actively respond to each stage's questions.\n"
+            "2. Engage with the mentoring prompts honestly to receive a meaningful evaluation.\n"
+            "3. Contact your program coordinator if you need support completing the assessment."
+        )
+
     assessment_messages = [
         {
             "role": "system",
@@ -500,6 +534,9 @@ async def _generate_assessment_from_history(
                 "- Key strengths identified\n"
                 "- Areas for improvement\n"
                 "- Top 3 recommendations\n\n"
+                "IMPORTANT: If any stage summaries indicate the participant did not respond or no conversation "
+                "took place, heavily penalise the score for those stages. A participant who skipped stages "
+                "should score no higher than 20/100 overall.\n\n"
                 "Format the score as 'XX/100' so it can be parsed."
             ),
         },
@@ -576,7 +613,7 @@ async def generate_report(db: AsyncSession, beneficiary_id: UUID, final_response
     # Extract score from response (look for patterns like "72/100" or "Score: 72")
     import re
     score_match = re.search(r"(\d{1,3})/100", final_response)
-    score = float(score_match.group(1)) if score_match else 65.0
+    score = float(score_match.group(1)) if score_match else 10.0
 
     # Determine readiness level
     if score >= 80:
