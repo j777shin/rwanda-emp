@@ -27,11 +27,11 @@ DB_CONFIG = {
     'dbname': os.getenv('DB_NAME', 'rwanda_emp')
 }
 
-# File paths
-BASE_DIR = "/Users/j777shin/code/rwanda/rwanda-emp/data"
-SCHEMA_FILE = f"{BASE_DIR}/database_schema.sql"
-USERS_CSV = f"{BASE_DIR}/synthetic_users.csv"
-BENEFICIARIES_CSV = f"{BASE_DIR}/synthetic_beneficiaries.csv"
+# File paths - use directory of this script so it works for any user
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SCHEMA_FILE = os.path.join(BASE_DIR, "database_schema.sql")
+USERS_CSV = os.path.join(BASE_DIR, "synthetic_users.csv")
+BENEFICIARIES_CSV = os.path.join(BASE_DIR, "synthetic_beneficiaries.csv")
 
 # ============================================================================
 # DATABASE FUNCTIONS

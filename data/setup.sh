@@ -69,16 +69,17 @@ else
     echo "⚠️  dropdb command not found, skipping drop step"
 fi
 
-# Load schema, data, survey tables, and test accounts
+# Load schema, data, survey tables, and test accounts (run from data dir so paths resolve)
+DATA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo ""
 echo "[6/6] Loading schema, data, and test accounts..."
-python3 load_data_to_db.py
+cd "$DATA_DIR" && python3 load_data_to_db.py
 
 echo "  Adding survey tables..."
-PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f add_survey_tables.sql
+cd "$DATA_DIR" && PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f add_survey_tables.sql
 
 echo "  Creating test accounts..."
-PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f create_test_accounts.sql
+cd "$DATA_DIR" && PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f create_test_accounts.sql
 
 echo ""
 echo "=========================================="
