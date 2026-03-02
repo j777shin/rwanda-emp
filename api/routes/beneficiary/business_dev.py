@@ -53,7 +53,8 @@ async def submit_business_dev(
             raise HTTPException(status_code=400, detail="Business development text exceeds 200 word limit")
 
     ben.wants_entrepreneurship = body.wants_entrepreneurship
-    ben.business_development_text = body.business_development_text if body.wants_entrepreneurship else ""
+    if body.wants_entrepreneurship:
+        ben.business_development_text = body.business_development_text
     await db.commit()
 
     return {"message": "Business development goal submitted successfully"}
