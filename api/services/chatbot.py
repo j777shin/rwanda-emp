@@ -93,7 +93,7 @@ async def send_message(
     if not current_stage:
         return {"error": "No active chatbot stage. All stages may be completed."}
 
-    # Build messages for Mistral API
+    # Build messages for LLM API
     system_prompt = get_stage_system_prompt(current_stage.stage_number)
 
     # Inject the beneficiary's business development goal as context
@@ -128,7 +128,14 @@ async def send_message(
     # Add current message
     api_messages.append({"role": "user", "content": user_message})
 
-    # Call Mistral API
+    # Cache stage info, then release the DB connection before the LLM call.
+    # Azure drops idle TCP connections during long LLM waits, causing commit() to fail.
+    stage_id = current_stage.id
+    stage_number = current_stage.stage_number
+    stage_name = current_stage.stage_name
+    await db.commit()
+
+    # LLM call — no DB connection held during this wait
     ai_response = await call_llm_api(api_messages)
 
     # Check if stage is complete
@@ -139,24 +146,28 @@ async def send_message(
     clean_response = ai_response.replace("[STAGE_COMPLETE]", "").replace("[CHATBOT_COMPLETE]", "").strip()
 
     if stage_completed:
-        # Summarize the stage conversation and save to stage_data
+        # Summarize — also an LLM call, still no DB connection needed
         full_stage_history = list(conversation_history or [])
         full_stage_history.append({"message": user_message, "is_user": True})
         full_stage_history.append({"message": clean_response, "is_user": False})
 
-        summary = await summarize_stage_conversation(full_stage_history, current_stage.stage_name)
+        summary = await summarize_stage_conversation(full_stage_history, stage_name)
 
+        # Re-fetch stage with fresh connection for writes
+        stage_result = await db.execute(
+            select(ChatbotStage).where(ChatbotStage.id == stage_id)
+        )
+        current_stage = stage_result.scalar_one()
         current_stage.status = "completed"
         current_stage.completed_at = datetime.utcnow()
         current_stage.stage_data = {"summary": summary, "conversation": full_stage_history}
 
         if not chatbot_completed:
             # Advance to next stage
-            next_stage_num = current_stage.stage_number + 1
             next_result = await db.execute(
                 select(ChatbotStage).where(
                     ChatbotStage.beneficiary_id == beneficiary_id,
-                    ChatbotStage.stage_number == next_stage_num,
+                    ChatbotStage.stage_number == stage_number + 1,
                 )
             )
             next_stage = next_result.scalar_one_or_none()
@@ -165,17 +176,16 @@ async def send_message(
                 next_stage.started_at = datetime.utcnow()
 
         if chatbot_completed:
-            # Generate final report
             await generate_report(db, beneficiary_id, clean_response)
 
-    await db.commit()
+        await db.commit()
 
     return {
         "response": clean_response,
         "stage_completed": stage_completed,
         "chatbot_completed": chatbot_completed,
-        "current_stage": current_stage.stage_number,
-        "current_stage_name": current_stage.stage_name,
+        "current_stage": stage_number,
+        "current_stage_name": stage_name,
     }
 
 
@@ -399,29 +409,36 @@ async def finish_stage(
     if not current_stage:
         return {"error": "No active chatbot stage. All stages may be completed."}
 
-    # Summarize the conversation via LLM
-    summary = await summarize_stage_conversation(
-        conversation_history, current_stage.stage_name
-    )
+    # Cache stage info, then release DB connection before LLM calls.
+    stage_id = current_stage.id
+    stage_number = current_stage.stage_number
+    stage_name = current_stage.stage_name
+    is_final_stage = stage_number == 5
+    await db.commit()
 
-    # Save full conversation + summary into stage_data
+    # LLM summarization — no DB connection held during this wait
+    summary = await summarize_stage_conversation(conversation_history, stage_name)
+
+    # For the final stage, generate the assessment from all stage data (also LLM)
+    report_response = None
+    if is_final_stage:
+        report_response = await _generate_assessment_from_history(db, beneficiary_id)
+
+    # Re-fetch stage with fresh connection for writes
+    stage_result = await db.execute(
+        select(ChatbotStage).where(ChatbotStage.id == stage_id)
+    )
+    current_stage = stage_result.scalar_one()
     current_stage.status = "completed"
     current_stage.completed_at = datetime.utcnow()
-    current_stage.stage_data = {
-        "summary": summary,
-        "conversation": conversation_history,
-    }
-
-    is_final_stage = current_stage.stage_number == 5
-    chatbot_completed = is_final_stage
+    current_stage.stage_data = {"summary": summary, "conversation": conversation_history}
 
     if not is_final_stage:
         # Advance to next stage
-        next_stage_num = current_stage.stage_number + 1
         next_result = await db.execute(
             select(ChatbotStage).where(
                 ChatbotStage.beneficiary_id == beneficiary_id,
-                ChatbotStage.stage_number == next_stage_num,
+                ChatbotStage.stage_number == stage_number + 1,
             )
         )
         next_stage = next_result.scalar_one_or_none()
@@ -429,17 +446,15 @@ async def finish_stage(
             next_stage.status = "in_progress"
             next_stage.started_at = datetime.utcnow()
     else:
-        # For stage 5, generate the final report from all stage data
-        report_response = await _generate_assessment_from_history(db, beneficiary_id)
         await generate_report(db, beneficiary_id, report_response)
 
     await db.commit()
 
     return {
         "stage_completed": True,
-        "chatbot_completed": chatbot_completed,
-        "completed_stage": current_stage.stage_number,
-        "completed_stage_name": current_stage.stage_name,
+        "chatbot_completed": is_final_stage,
+        "completed_stage": stage_number,
+        "completed_stage_name": stage_name,
     }
 
 

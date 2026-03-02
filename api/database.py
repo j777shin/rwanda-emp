@@ -5,7 +5,12 @@ from config import get_settings
 
 settings = get_settings()
 
-engine = create_async_engine(settings.database_url, echo=False)
+engine = create_async_engine(
+    settings.database_url,
+    echo=False,
+    pool_pre_ping=True,   # validate connections before use
+    pool_recycle=1800,    # recycle connections every 30 min
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
