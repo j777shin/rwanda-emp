@@ -114,6 +114,181 @@ def initialize_schema(config: dict, schema_file: str) -> bool:
         return False
 
 
+def create_test_accounts(config: dict) -> bool:
+    admin_email = os.getenv("TEST_ADMIN_EMAIL")
+    admin_password = os.getenv("TEST_ADMIN_PASSWORD")
+    ben_email = os.getenv("TEST_BENEFICIARY_EMAIL")
+    ben_password = os.getenv("TEST_BENEFICIARY_PASSWORD")
+
+    if not admin_email or not admin_password or not ben_email or not ben_password:
+        print("⚠ Test account env vars not fully set; skipping test account creation.")
+        return False
+
+    try:
+        conn = psycopg.connect(**config)
+        cursor = conn.cursor()
+
+        # 1) Admin user (upsert by email)
+        cursor.execute(
+            """
+            INSERT INTO users (email, password_hash, role, is_active, created_at, updated_at)
+            VALUES (%s, crypt(%s, gen_salt('bf')), 'admin', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (email) DO UPDATE
+            SET password_hash = crypt(%s, gen_salt('bf')),
+                is_active = TRUE,
+                updated_at = CURRENT_TIMESTAMP;
+            """,
+            (admin_email, admin_password, admin_password),
+        )
+
+        # 2) Beneficiary user (upsert, then beneficiary profile upsert on user_id)
+        cursor.execute(
+            """
+            INSERT INTO users (email, password_hash, role, is_active, created_at, updated_at)
+            VALUES (%s, crypt(%s, gen_salt('bf')), 'beneficiary', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (email) DO UPDATE
+            SET password_hash = crypt(%s, gen_salt('bf')),
+                is_active = TRUE,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING id;
+            """,
+            (ben_email, ben_password, ben_password),
+        )
+        (ben_user_id,) = cursor.fetchone()
+
+        business_text = (
+            "Imanzi Wear – Affordable Urban Fashion in Kigali, Rwanda\n\n"
+            "Imanzi Wear will launch as a small-scale, print-on-demand clothing brand targeting youth aged 16–35. "
+            "The initial focus will be on high-quality graphic t-shirts and caps featuring modern Rwandan-inspired "
+            "designs. Production will follow a pre-order model to minimize inventory risk and reduce upfront costs.\n\n"
+            "Business Model:\n\n"
+            "Designs will be created digitally and printed through partnerships with local printing shops in Kigali. "
+            "Products will be marketed and sold through Instagram, WhatsApp Business, and university pop-up sales. "
+            "Customers will place orders during a two-week pre-order campaign, and production will begin after "
+            "payments are collected, ensuring positive cash flow."
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO beneficiaries (
+                user_id,
+                name,
+                age,
+                gender,
+                contact,
+                marriage_status,
+                disability,
+                education_level,
+                occupation,
+                informal_working,
+                num_goats,
+                num_sheep,
+                num_pigs,
+                land_ownership,
+                land_size,
+                num_radio,
+                num_phone,
+                num_tv,
+                cooking_firewood,
+                cooking_gas,
+                cooking_charcoal,
+                floor_earth_sand,
+                floor_tiles,
+                lighting,
+                num_cattle,
+                children_under_18,
+                household_size,
+                hh_head_university,
+                hh_head_primary,
+                hh_head_secondary,
+                hh_head_married,
+                hh_head_widow,
+                hh_head_divorced,
+                hh_head_female,
+                district,
+                selection_status,
+                track,
+                wants_entrepreneurship,
+                self_employed,
+                business_development_text,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                %s,
+                'Test User',
+                26,
+                'female',
+                '+250788000000',
+                FALSE,
+                FALSE,
+                'secondary',
+                FALSE,
+                TRUE,
+                2,
+                0,
+                1,
+                TRUE,
+                0.5,
+                1,
+                1,
+                0,
+                TRUE,
+                FALSE,
+                TRUE,
+                TRUE,
+                FALSE,
+                FALSE,
+                0,
+                1,
+                4,
+                FALSE,
+                TRUE,
+                FALSE,
+                FALSE,
+                FALSE,
+                FALSE,
+                TRUE,
+                'Gasabo',
+                'selected',
+                'both',
+                TRUE,
+                FALSE,
+                %s,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            )
+            ON CONFLICT (user_id) DO UPDATE
+            SET
+                name = 'Test User',
+                age = 26,
+                gender = 'female',
+                contact = '+250788000000',
+                skillcraft_score = NULL,
+                ingazi_completion_rate = NULL,
+                eligibility_score = NULL,
+                selection_status = 'selected',
+                track = 'both',
+                wants_entrepreneurship = TRUE,
+                self_employed = FALSE,
+                business_development_text = %s,
+                updated_at = CURRENT_TIMESTAMP;
+            """,
+            (ben_user_id, business_text, business_text),
+        )
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        print("✓ Test admin and beneficiary accounts created/updated from .env")
+        return True
+
+    except Exception as e:
+        print(f"✗ Error creating test accounts: {e}")
+        return False
+
+
 def table_exists(config: dict, table_name: str) -> bool:
     """
     Check if a table exists in the database
@@ -365,7 +540,7 @@ def main():
         return
 
     # Step 2: Initialize schema
-    print("\n[Step 2/4] Initializing database schema...")
+    print("\n[Step 2/5] Initializing database schema...")
     if not initialize_schema(DB_CONFIG, SCHEMA_FILE):
         print("\n✗ Failed to initialize schema.")
         return
@@ -381,8 +556,12 @@ def main():
 
     print("✓ Database tables created successfully")
 
-    # Step 3: Load users data
-    print("\n[Step 3/4] Loading users data...")
+    # Step 3: Create admin + test accounts using .env credentials
+    print("\n[Step 3/5] Creating admin and test beneficiary accounts...")
+    create_test_accounts(DB_CONFIG)
+
+    # Step 4: Load users data
+    print("\n[Step 4/5] Loading users data...")
 
     # Try COPY method first (faster)
     success = load_csv_to_table(DB_CONFIG, USERS_CSV, 'users')
@@ -396,8 +575,8 @@ def main():
         print("✗ Failed to load users data")
         return
 
-    # Step 4: Load beneficiaries data
-    print("\n[Step 4/4] Loading beneficiaries data...")
+    # Step 5: Load beneficiaries data
+    print("\n[Step 5/5] Loading beneficiaries data...")
 
     # Try COPY method first (faster)
     success = load_csv_to_table(DB_CONFIG, BENEFICIARIES_CSV, 'beneficiaries')

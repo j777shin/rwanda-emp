@@ -5,42 +5,13 @@
 -- Run this after initializing the database schema
 
 -- ============================================================================
--- 1. ADMIN TEST ACCOUNT
--- ============================================================================
-
--- Insert admin user
-INSERT INTO users (email, password_hash, role, is_active, created_at, updated_at)
-VALUES (
-    'admin@rwanda.gov.rw',
-    crypt('Admin@2026', gen_salt('bf')),
-    'admin',
-    TRUE,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
-) ON CONFLICT (email) DO UPDATE
-SET password_hash = crypt('Admin@2026', gen_salt('bf')),
-    is_active = TRUE,
-    updated_at = CURRENT_TIMESTAMP;
-
--- ============================================================================
 -- 2. BENEFICIARY TEST ACCOUNT (Full Access - All Tabs)
 -- ============================================================================
 
 -- Insert beneficiary user with track='both' so all Phase 2 tabs are unlocked
+-- (see Python implementation for env-driven credentials)
 WITH new_user AS (
-    INSERT INTO users (email, password_hash, role, is_active, created_at, updated_at)
-    VALUES (
-        'test@gmail.com',
-        crypt('User@2026', gen_salt('bf')),
-        'beneficiary',
-        TRUE,
-        CURRENT_TIMESTAMP,
-        CURRENT_TIMESTAMP
-    ) ON CONFLICT (email) DO UPDATE
-    SET password_hash = crypt('User@2026', gen_salt('bf')),
-        is_active = TRUE,
-        updated_at = CURRENT_TIMESTAMP
-    RETURNING id
+    SELECT NULL::uuid AS id
 )
 -- Insert beneficiary profile
 INSERT INTO beneficiaries (
